@@ -314,7 +314,8 @@ def extract_items(text_in):
                 _o, _, _ = object_model(_X1_HS,_X1_H,_input_mask,_Y,_X2,_X2_SEG,_X2_MASK)  # _o:[b,1]
                 _o = _o.detach().cpu().numpy()
                 for k, v in groupby(zip(_S,_o), key=lambda x:x[0]):
-                    v = np.array([j[0] for j in v])
+                    v = np.array([j[1] for j in v])
+                    assert len(_IDXS[k]) == len(v)
                     kbid = _IDXS[k][np.argmax(v)]
                     R.append((k[0],k[1],kbid))
         return R
@@ -337,8 +338,6 @@ for e in range(epoch_num):
 
     for batch in train_D:
         batch_idx += 1
-        if batch_idx > 1:
-            break
 
         batch = tuple(t.to(device) for t in batch)
         X1, X2, S1, S2, Y, T, X1_MASK, X2_MASK, X1_SEG, X2_SEG = batch
