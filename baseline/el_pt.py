@@ -244,6 +244,7 @@ if n_gpu > 1:
 
 # loss
 b_loss_func = nn.BCELoss(reduction='none')
+b2_loss_func = nn.BCELoss()
 
 # optim
 param_optimizer = list(subject_model.named_parameters()) + list(object_model.named_parameters())
@@ -278,12 +279,13 @@ def extract_items(text_in):
         _k1, _k2 = np.where(_k1>0.5)[0], np.where(_k2>0.5)[0]
 
     _subjects = []
-    for i in _k1:
-        j = _k2[_k2>=i]
-        if len(j)>0:
-            j= j[0]
-            _subject = text_in[i:j+1]
-            _subjects.append((_subject, i,j+1))
+    if len(_k1) and len(_k2):
+        for i in _k1:
+            j = _k2[_k2>=i]
+            if len(j)>0:
+                j= j[0]
+                _subject = text_in[i:j+1]
+                _subjects.append((_subject, i,j+1))
     if _subjects:
         R= []
         _X2, _X2_MASK,_Y = [],[],[]
@@ -305,14 +307,14 @@ def extract_items(text_in):
             _X2_MASK = torch.tensor(seq_padding(_X2_MASK), dtype=torch.long, device=device)
             _X2_SEG = torch.zeros(*_X2.size(), dtype=torch.long, device=device)
             _Y = torch.tensor(seq_padding(_Y), dtype=torch.float32)
-            _X1_HS = _x1_hs.expand(_X2.size(0),-1)  #[b,s1]
+            _X1_HS = _x1_hs.expand(_X2.size(0),-1,-1)  #[b,s1]
             _X1_H = _x1_h.expand(_X2.size(0),-1)  #[b,s1]
 
             with torch.no_grad():
-                _o, _, _ = object_model(_X1_HS,_X1_H,_Y,_X2,_X2_SEG,_X2_MASK)  # _o:[b,1]
+                _o, _, _ = object_model(_X1_HS,_X1_H,_input_mask,_Y,_X2,_X2_SEG,_X2_MASK)  # _o:[b,1]
                 _o = _o.detach().cpu().numpy()
                 for k, v in groupby(zip(_S,_o), key=lambda x:x[0]):
-                    v = np.array(j[0] for j in v)
+                    v = np.array([j[0] for j in v])
                     kbid = _IDXS[k][np.argmax(v)]
                     R.append((k[0],k[1],kbid))
         return R
@@ -335,6 +337,8 @@ for e in range(epoch_num):
 
     for batch in train_D:
         batch_idx += 1
+        if batch_idx > 1:
+            break
 
         batch = tuple(t.to(device) for t in batch)
         X1, X2, S1, S2, Y, T, X1_MASK, X2_MASK, X1_SEG, X2_SEG = batch
@@ -351,7 +355,7 @@ for e in range(epoch_num):
         s1_loss = torch.sum(s1_loss) / total_ele
         s2_loss = torch.sum(s2_loss) / total_ele
 
-        po_loss = b_loss_func(pred_o, T)
+        po_loss = b2_loss_func(pred_o, T)
 
         tmp_loss = (s1_loss + s2_loss) + po_loss
 
@@ -372,14 +376,14 @@ for e in range(epoch_num):
     A, B, C = 1e-10, 1e-10, 1e-10
     for d in tqdm(iter(dev_data)):
         R = set(extract_items(d['text']))
-        T = set([tuple(i) for i in d['spo_list']])
+        T = set(d['mention_data'])
         A += len(R & T)
         B += len(R)
         C += len(T)
 
         if R != T:
             err_dict['err'].append({'text': d['text'],
-                                    'spo_list': d['spo_list'],
+                                    'mention_data': d['mention_data'],
                                     'predict': list(R)})
 
     f1, precision, recall = 2 * A / (B + C), A / B, A / C
@@ -389,11 +393,14 @@ for e in range(epoch_num):
 
         json.dump(err_dict, err_log, ensure_ascii=False)
 
-        # s_model_to_save = subject_model.module if hasattr(subject_model, 'module') else subject_model
-        # o_model_to_save = object_model.module if hasattr(object_model, 'module') else object_model
+        s_model_to_save = subject_model.module if hasattr(subject_model, 'module') else subject_model
+        o_model_to_save = object_model.module if hasattr(object_model, 'module') else object_model
 
-        # torch.save(s_model_to_save.state_dict(), model_dir + '/subject_model.pt')
-        # torch.save(o_model_to_save.state_dict(), model_dir + '/object_model.pt')
+        torch.save(s_model_to_save.state_dict(), data_dir + '/subject_model.pt')
+        torch.save(o_model_to_save.state_dict(), data_dir + '/object_model.pt')
+
+        (Path(data_dir)/'subject_model_config.json').open('w').write(s_model_to_save.config.to_json_string())
+        (Path(data_dir)/'object_model_config.json').open('w').write(o_model_to_save.config.to_json_string())
 
     logger.info(
         f'Epoch:{e}-precision:{precision:.4f}-recall:{recall:.4f}-f1:{f1:.4f} - best f1: {best_score:.4f} - best epoch:{best_epoch}')
