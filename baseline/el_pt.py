@@ -22,7 +22,7 @@ hidden_size = 768
 epoch_num = 10
 batch_size = 64
 
-logging.basicConfig(format='%(acstime)s - %(levelname)s - %(name)s - %(message)s',
+logging.basicConfig(format='%(asctime)s - %(levelname)s - %(name)s - %(message)s',
                     datefmt='%m/%d/%y %H:%M:%S',
                     level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -47,7 +47,7 @@ for l in (Path(data_dir) / 'kb_data').open():
         id2kb[subject_id] = {'subject_alias': subject_alias, 'subject_desc': subject_desc}
 
 kb2id = defaultdict(list)  # subject: [sid1, sid2,...]
-for i, j in id2kb:
+for i, j in id2kb.items():
     for k in j['subject_alias']:
         kb2id[k].append(i)
 
@@ -76,7 +76,7 @@ else:
     id2char, char2id = json.load((Path(data_dir) / 'all_chars_me.json').open())
 
 if not (Path(data_dir) / 'random_order_train.json').exists():
-    random_order = range(len(train_data))
+    random_order = list(range(len(train_data)))
     np.random.shuffle(random_order)
     json.dump(
         random_order,
@@ -92,7 +92,7 @@ train_data = [train_data[j] for i, j in enumerate(random_order) if i % 9 != mode
 
 def seq_padding(X):
     ML = max(map(len, X))
-    return [x + [0] * (ML - len(x)) for x in X]
+    return [list(x) + [0] * (ML - len(x)) for x in X]
 
 
 def load_vocab(vocab_file):
@@ -141,10 +141,10 @@ class data_generator:
                     j2 = md[1] + len(md[0])
                     s1[j1] = 1
                     s2[j2 - 1] = 1
-                    mds[(j1, j2)] = (mds[0], mds[2])
+                    mds[(j1, j2)] = (md[0], md[2])
 
             if mds:
-                j1, j2 = choice(mds.keys())
+                j1, j2 = choice(list(mds.keys()))
                 y = np.zeros(len(text))
                 y[j1:j2] = 1
                 x2 = choice(kb2id[mds[(j1, j2)][0]])
@@ -164,16 +164,16 @@ class data_generator:
                 X1_MASK.append(x1_mask)
                 X2_MASK.append(x2_mask)
                 if len(X1) == self.batch_size or i == idxs[-1]:
-                    X1 = torch.tensor(seq_padding(X1), dtype=torch.long)
-                    X2 = torch.tensor(seq_padding(X2), dtype=torch.long)
-                    S1 = torch.tensor(seq_padding(S1), dtype=torch.long)
-                    S2 = torch.tensor(seq_padding(S2), dtype=torch.long)
-                    Y = torch.tensor(seq_padding(Y), dtype=torch.long)
-                    T = torch.tensor(seq_padding(T), dtype=torch.long)
+                    X1 = torch.tensor(seq_padding(X1), dtype=torch.long)  # [b,s1]
+                    X2 = torch.tensor(seq_padding(X2), dtype=torch.long)  # [b,s2]
+                    S1 = torch.tensor(seq_padding(S1), dtype=torch.float32)  # [b,s1]
+                    S2 = torch.tensor(seq_padding(S2), dtype=torch.float32) #[b,s1]
+                    Y = torch.tensor(seq_padding(Y), dtype=torch.float32) #[b,s1]
+                    T = torch.tensor(T, dtype=torch.float32) #[b,1]
                     X1_MASK = torch.tensor(seq_padding(X1_MASK), dtype=torch.long)
                     X2_MASK = torch.tensor(seq_padding(X2_MASK), dtype=torch.long)
-                    X1_SEG = torch.zeros(*X1.size())
-                    X2_SEG = torch.zeros(*X2.size())
+                    X1_SEG = torch.zeros(*X1.size(), dtype=torch.long)
+                    X2_SEG = torch.zeros(*X2.size(),dtype=torch.long)
 
                     yield [X1, X2, S1, S2, Y, T, X1_MASK, X2_MASK, X1_SEG, X2_SEG]
                     X1, X2, S1, S2, Y, T, X1_MASK, X2_MASK = [], [], [], [], [], [], [], []
@@ -186,8 +186,8 @@ class SubjectModel(BertPreTrainedModel):
         self.linear1 = nn.Linear(in_features=hidden_size, out_features=1)
         self.linear2 = nn.Linear(in_features=hidden_size, out_features=1)
 
-    def forward(self, x1_ids, x1_segments, x1_mask, x2_ids, x2_segments, x2_mask):
-        x1_encoder_layers, x1_pooled_out = self.bert(x1_ids, x1_segments, x1_mask, output_all_encoder_layers=False)
+    def forward(self, x1_ids, x1_segments, x1_mask):
+        x1_encoder_layers, x1_pooled_out = self.bert(x1_ids, x1_segments, x1_mask, output_all_encoded_layers=False)
 
         ps1 = torch.sigmoid(self.linear1(x1_encoder_layers).squeeze(-1))
         ps2 = torch.sigmoid(self.linear2(x1_encoder_layers).squeeze(-1))
@@ -205,18 +205,18 @@ class ObjectModel(BertPreTrainedModel):
     def forward(self, x1, x1_h, x1_mask, y, x2_ids, x2_segments, x2_mask):
         x1 = torch.cat([x1, y.unsqueeze(2)], dim=-1)  # [b,s,h] [b,s,1] -> [b,s,h+1]
 
-        x2, x2_h = self.bert(x2_ids, x2_segments, x2_mask, output_all_encoder_layers=False)
+        x2, x2_h = self.bert(x2_ids, x2_segments, x2_mask, output_all_encoded_layers=False)
 
         x1_mask = 1 - x1_mask.byte()
         x2_mask = 1 - x2_mask.byte()
 
         x1w = torch.matmul(x1, self.w)
         a = torch.bmm(x1w, x2.permute(0, 2, 1))  # [b,s1,s2]
-        a.masked_fill_(x2_mask.unsqueeze(2), -1e-5)
+        a.masked_fill_(x2_mask.unsqueeze(1), -1e-5)  # [b,s2]->[b,1,s2]
         a = F.softmax(a, dim=-1)
         x12 = torch.bmm(a, x2)  # [b,s1,s2]*[b,s2,h]->[b,s1,h]
         x12 = F.max_pool1d(x12.masked_fill(x1_mask.unsqueeze(2), -1e5).permute(0, 2, 1), kernel_size=x12.size(1))
-        x12 = x12.squeeze(1)
+        x12 = x12.squeeze(2)
 
         h = torch.cat([x1_h, x2_h, x12], dim=1)  # [b,3*h]
 
@@ -227,7 +227,8 @@ class ObjectModel(BertPreTrainedModel):
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 n_gpu = torch.cuda.device_count()
-logger.info(f'use {n_gpu} gpu')
+if n_gpu>1:
+    logger.info(f'use {n_gpu} gpu')
 
 subject_model = SubjectModel.from_pretrained(pretrained_model_name_or_path=bert_model_path, cache_dir=bert_data_path)
 object_model = ObjectModel.from_pretrained(pretrained_model_name_or_path=bert_model_path, cache_dir=bert_data_path)
@@ -264,7 +265,6 @@ optimizer = BertAdam(optimizer_grouped_parameters,
 
 
 def extract_items(text_in):
-    R = []
     _s = [bert_vocab.get(c, bert_vocab.get('[UNK]')) for c in text_in]
     _input_mask = [1] * len(_s)
     _s = torch.tensor([_s], dtype=torch.long, device=device)  # [1,s1]
@@ -304,7 +304,7 @@ def extract_items(text_in):
             _X2 = torch.tensor(seq_padding(_X2), dtype=torch.long, device=device)  # [b,s2]
             _X2_MASK = torch.tensor(seq_padding(_X2_MASK), dtype=torch.long, device=device)
             _X2_SEG = torch.zeros(*_X2.size(), dtype=torch.long, device=device)
-            _Y = torch.tensor(seq_padding(_Y), dtype=torch.long)
+            _Y = torch.tensor(seq_padding(_Y), dtype=torch.float32)
             _X1_HS = _x1_hs.expand(_X2.size(0),-1)  #[b,s1]
             _X1_H = _x1_h.expand(_X2.size(0),-1)  #[b,s1]
 
@@ -336,7 +336,7 @@ for e in range(epoch_num):
     for batch in train_D:
         batch_idx += 1
 
-        batch = tuple(t.to(device) for t in batch[0])
+        batch = tuple(t.to(device) for t in batch)
         X1, X2, S1, S2, Y, T, X1_MASK, X2_MASK, X1_SEG, X2_SEG = batch
         pred_s1, pred_s2, x1_hs, x1_h = subject_model(X1, X1_SEG, X1_MASK)
         pred_o, x1_mask_, x2_mask_ = object_model(x1_hs, x1_h, X1_MASK, Y, X2, X2_SEG, X2_MASK)
