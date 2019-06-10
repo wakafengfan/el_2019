@@ -309,6 +309,7 @@ def extract_items(text_in):
             _Y = torch.tensor(seq_padding(_Y), dtype=torch.float32)
             _X1_HS = _x1_hs.expand(_X2.size(0),-1,-1)  #[b,s1]
             _X1_H = _x1_h.expand(_X2.size(0),-1)  #[b,s1]
+            _input_mask = _input_mask.expand(_X2.size(0),-1)  #[b,s1]
 
             with torch.no_grad():
                 _o, _, _ = object_model(_X1_HS,_X1_H,_input_mask,_Y,_X2,_X2_SEG,_X2_MASK)  # _o:[b,1]
@@ -338,6 +339,8 @@ for e in range(epoch_num):
 
     for batch in train_D:
         batch_idx += 1
+        if batch_idx > 1:
+            break
 
         batch = tuple(t.to(device) for t in batch)
         X1, X2, S1, S2, Y, T, X1_MASK, X2_MASK, X1_SEG, X2_SEG = batch
