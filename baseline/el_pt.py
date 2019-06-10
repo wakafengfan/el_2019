@@ -379,7 +379,11 @@ for e in range(epoch_num):
     subject_model.eval()
     object_model.eval()
     A, B, C = 1e-10, 1e-10, 1e-10
+    tmp_idx = 0
     for d in tqdm(iter(dev_data)):
+        tmp_idx += 1
+        if tmp_idx>1:
+            break
         R = set(extract_items(d['text']))
         T = set(d['mention_data'])
         A += len(R & T)
@@ -388,8 +392,8 @@ for e in range(epoch_num):
 
         if R != T:
             err_dict['err'].append({'text': d['text'],
-                                    'mention_data': d['mention_data'],
-                                    'predict': list(R)})
+                                    'mention_data': list(map(lambda x: str(x[1]), d['mention_data'])),
+                                    'predict': list(map(lambda x: str(x[1]), R))})
 
     f1, precision, recall = 2 * A / (B + C), A / B, A / C
     if f1 > best_score:
@@ -405,7 +409,6 @@ for e in range(epoch_num):
         torch.save(o_model_to_save.state_dict(), data_dir + '/object_model.pt')
 
         (Path(data_dir) / 'subject_model_config.json').open('w').write(s_model_to_save.config.to_json_string())
-        (Path(data_dir) / 'object_model_config.json').open('w').write(o_model_to_save.config.to_json_string())
 
     logger.info(
         f'Epoch:{e}-precision:{precision:.4f}-recall:{recall:.4f}-f1:{f1:.4f} - best f1: {best_score:.4f} - best epoch:{best_epoch}')
