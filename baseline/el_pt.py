@@ -167,13 +167,13 @@ class data_generator:
                     X1 = torch.tensor(seq_padding(X1), dtype=torch.long)  # [b,s1]
                     X2 = torch.tensor(seq_padding(X2), dtype=torch.long)  # [b,s2]
                     S1 = torch.tensor(seq_padding(S1), dtype=torch.float32)  # [b,s1]
-                    S2 = torch.tensor(seq_padding(S2), dtype=torch.float32) #[b,s1]
-                    Y = torch.tensor(seq_padding(Y), dtype=torch.float32) #[b,s1]
-                    T = torch.tensor(T, dtype=torch.float32) #[b,1]
+                    S2 = torch.tensor(seq_padding(S2), dtype=torch.float32)  # [b,s1]
+                    Y = torch.tensor(seq_padding(Y), dtype=torch.float32)  # [b,s1]
+                    T = torch.tensor(T, dtype=torch.float32)  # [b,1]
                     X1_MASK = torch.tensor(seq_padding(X1_MASK), dtype=torch.long)
                     X2_MASK = torch.tensor(seq_padding(X2_MASK), dtype=torch.long)
                     X1_SEG = torch.zeros(*X1.size(), dtype=torch.long)
-                    X2_SEG = torch.zeros(*X2.size(),dtype=torch.long)
+                    X2_SEG = torch.zeros(*X2.size(), dtype=torch.long)
 
                     yield [X1, X2, S1, S2, Y, T, X1_MASK, X2_MASK, X1_SEG, X2_SEG]
                     X1, X2, S1, S2, Y, T, X1_MASK, X2_MASK = [], [], [], [], [], [], [], []
@@ -185,27 +185,31 @@ class SubjectModel(BertPreTrainedModel):
         self.bert = BertModel(config)
         self.linear1 = nn.Linear(in_features=hidden_size, out_features=1)
         self.linear2 = nn.Linear(in_features=hidden_size, out_features=1)
+        self.apply(self.init_bert_weights)
 
-    def forward(self, x1_ids, x1_segments, x1_mask):
-        x1_encoder_layers, x1_pooled_out = self.bert(x1_ids, x1_segments, x1_mask, output_all_encoded_layers=False)
+    def forward(self, flag, x1_ids=None, x1_segments=None, x1_mask=None, x2_ids=None, x2_segments=None, x2_mask=None):
+        if flag == 'x1':
+            x1_encoder_layers, x1_pooled_out = self.bert(x1_ids, x1_segments, x1_mask, output_all_encoded_layers=False)
 
-        ps1 = torch.sigmoid(self.linear1(x1_encoder_layers).squeeze(-1))
-        ps2 = torch.sigmoid(self.linear2(x1_encoder_layers).squeeze(-1))
+            ps1 = torch.sigmoid(self.linear1(x1_encoder_layers).squeeze(-1))
+            ps2 = torch.sigmoid(self.linear2(x1_encoder_layers).squeeze(-1))
 
-        return ps1, ps2, x1_encoder_layers, x1_pooled_out
+            return ps1, ps2, x1_encoder_layers, x1_pooled_out
+        else:
+            x2_encoder_layers, x2_pooled_out = self.bert(x2_ids, x2_segments, x2_mask, output_all_encoded_layers=False)
+            return x2_encoder_layers, x2_pooled_out
 
 
-class ObjectModel(BertPreTrainedModel):
-    def __init__(self, config):
-        super(ObjectModel, self).__init__(config)
-        self.bert = BertModel(config)
-        self.w = nn.Parameter(nn.init.xavier_normal(torch.empty(hidden_size + 1, hidden_size)))
+class ObjectModel(nn.Module):
+    def __init__(self):
+        super(ObjectModel, self).__init__()
+        w = torch.empty(hidden_size + 1, hidden_size)
+        nn.init.xavier_normal_(w)
+        self.w = nn.Parameter(w)
         self.linear = nn.Linear(in_features=hidden_size * 3, out_features=1)
 
-    def forward(self, x1, x1_h, x1_mask, y, x2_ids, x2_segments, x2_mask):
+    def forward(self, x1, x1_h, x1_mask, y, x2, x2_h, x2_mask):
         x1 = torch.cat([x1, y.unsqueeze(2)], dim=-1)  # [b,s,h] [b,s,1] -> [b,s,h+1]
-
-        x2, x2_h = self.bert(x2_ids, x2_segments, x2_mask, output_all_encoded_layers=False)
 
         x1_mask = 1 - x1_mask.byte()
         x2_mask = 1 - x2_mask.byte()
@@ -227,11 +231,9 @@ class ObjectModel(BertPreTrainedModel):
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 n_gpu = torch.cuda.device_count()
-if n_gpu>1:
-    logger.info(f'use {n_gpu} gpu')
 
 subject_model = SubjectModel.from_pretrained(pretrained_model_name_or_path=bert_model_path, cache_dir=bert_data_path)
-object_model = ObjectModel.from_pretrained(pretrained_model_name_or_path=bert_model_path, cache_dir=bert_data_path)
+object_model = ObjectModel()
 
 subject_model.to(device)
 object_model.to(device)
@@ -273,23 +275,23 @@ def extract_items(text_in):
     _segment_ids = torch.zeros(*_s.size(), dtype=torch.long, device=device)
 
     with torch.no_grad():
-        _k1, _k2, _x1_hs, _x1_h = subject_model(_s, _segment_ids, _input_mask)  # _k1:[1,s]
-        _k1 = _k1[0,:].detach().cpu().numpy()
-        _k2 = _k2[0,:].detach().cpu().numpy()
-        _k1, _k2 = np.where(_k1>0.5)[0], np.where(_k2>0.5)[0]
+        _k1, _k2, _x1_hs, _x1_h = subject_model('x1', _s, _segment_ids, _input_mask)  # _k1:[1,s]
+        _k1 = _k1[0, :].detach().cpu().numpy()
+        _k2 = _k2[0, :].detach().cpu().numpy()
+        _k1, _k2 = np.where(_k1 > 0.5)[0], np.where(_k2 > 0.5)[0]
 
     _subjects = []
     if len(_k1) and len(_k2):
         for i in _k1:
-            j = _k2[_k2>=i]
-            if len(j)>0:
-                j= j[0]
-                _subject = text_in[i:j+1]
-                _subjects.append((_subject, i,j+1))
+            j = _k2[_k2 >= i]
+            if len(j) > 0:
+                j = j[0]
+                _subject = text_in[i:j + 1]
+                _subjects.append((_subject, i, j + 1))
     if _subjects:
-        R= []
-        _X2, _X2_MASK,_Y = [],[],[]
-        _S,_IDXS = [],{}
+        R = []
+        _X2, _X2_MASK, _Y = [], [], []
+        _S, _IDXS = [], {}
         for _s in _subjects:
             _y = np.zeros(len(text_in))
             _y[_s[1]:_s[2]] = 1
@@ -297,7 +299,7 @@ def extract_items(text_in):
             for i in _IDXS[_s]:
                 _x2 = id2kb[i]['subject_desc']
                 _x2 = [bert_vocab.get(c, bert_vocab.get('[UNK]')) for c in _x2]
-                _x2_mask = [1]*len(_x2)
+                _x2_mask = [1] * len(_x2)
                 _X2.append(_x2)
                 _X2_MASK.append(_x2_mask)
                 _Y.append(_y)
@@ -307,18 +309,18 @@ def extract_items(text_in):
             _X2_MASK = torch.tensor(seq_padding(_X2_MASK), dtype=torch.long, device=device)
             _X2_SEG = torch.zeros(*_X2.size(), dtype=torch.long, device=device)
             _Y = torch.tensor(seq_padding(_Y), dtype=torch.float32)
-            _X1_HS = _x1_hs.expand(_X2.size(0),-1,-1)  #[b,s1]
-            _X1_H = _x1_h.expand(_X2.size(0),-1)  #[b,s1]
-            _input_mask = _input_mask.expand(_X2.size(0),-1)  #[b,s1]
+            _X1_HS = _x1_hs.expand(_X2.size(0), -1, -1)  # [b,s1]
+            _X1_H = _x1_h.expand(_X2.size(0), -1)  # [b,s1]
+            _input_mask = _input_mask.expand(_X2.size(0), -1)  # [b,s1]
 
             with torch.no_grad():
-                _o, _, _ = object_model(_X1_HS,_X1_H,_input_mask,_Y,_X2,_X2_SEG,_X2_MASK)  # _o:[b,1]
+                _x2, _x2_h = subject_model('x2', None,None,None,_X2, _X2_SEG, _X2_MASK)
+                _o, _, _ = object_model(_X1_HS, _X1_H, _input_mask, _Y, _x2, _x2_h, _X2_MASK)  # _o:[b,1]
                 _o = _o.detach().cpu().numpy()
-                for k, v in groupby(zip(_S,_o), key=lambda x:x[0]):
+                for k, v in groupby(zip(_S, _o), key=lambda x: x[0]):
                     v = np.array([j[1] for j in v])
-                    assert len(_IDXS[k]) == len(v)
                     kbid = _IDXS[k][np.argmax(v)]
-                    R.append((k[0],k[1],kbid))
+                    R.append((k[0], k[1], kbid))
         return R
     else:
         return []
@@ -344,8 +346,9 @@ for e in range(epoch_num):
 
         batch = tuple(t.to(device) for t in batch)
         X1, X2, S1, S2, Y, T, X1_MASK, X2_MASK, X1_SEG, X2_SEG = batch
-        pred_s1, pred_s2, x1_hs, x1_h = subject_model(X1, X1_SEG, X1_MASK)
-        pred_o, x1_mask_, x2_mask_ = object_model(x1_hs, x1_h, X1_MASK, Y, X2, X2_SEG, X2_MASK)
+        pred_s1, pred_s2, x1_hs, x1_h = subject_model('x1', X1, X1_SEG, X1_MASK)
+        x2_hs, x2_h = subject_model('x2', None, None, None, X2, X2_SEG, X2_MASK)
+        pred_o, x1_mask_, x2_mask_ = object_model(x1_hs, x1_h, X1_MASK, Y, x2_hs, x2_h, X2_MASK)
 
         s1_loss = b_loss_func(pred_s1, S1)  # [b,s]
         s2_loss = b_loss_func(pred_s2, S2)
@@ -401,8 +404,8 @@ for e in range(epoch_num):
         torch.save(s_model_to_save.state_dict(), data_dir + '/subject_model.pt')
         torch.save(o_model_to_save.state_dict(), data_dir + '/object_model.pt')
 
-        (Path(data_dir)/'subject_model_config.json').open('w').write(s_model_to_save.config.to_json_string())
-        (Path(data_dir)/'object_model_config.json').open('w').write(o_model_to_save.config.to_json_string())
+        (Path(data_dir) / 'subject_model_config.json').open('w').write(s_model_to_save.config.to_json_string())
+        (Path(data_dir) / 'object_model_config.json').open('w').write(o_model_to_save.config.to_json_string())
 
     logger.info(
         f'Epoch:{e}-precision:{precision:.4f}-recall:{recall:.4f}-f1:{f1:.4f} - best f1: {best_score:.4f} - best epoch:{best_epoch}')
