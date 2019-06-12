@@ -76,6 +76,8 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 subject_model.to(device)
 object_model.to(device)
+subject_model.eval()
+object_model.eval()
 
 def load_vocab(vocab_file):
     """Loads a vocabulary file into a dictionary."""
@@ -162,7 +164,7 @@ for l in (Path(data_dir)/'develop.json').open():
     text = doc['text']
     R = extract_items(text)
     doc.update({
-        'mention_data': [{'kb_id':r[2],'mention':r[0],'offset':r[1]} for r in R]
+        'mention_data': [{'kb_id':r[2],'mention':r[0],'offset':str(r[1])} for r in R]
     })
     output_path.write(json.dumps(doc) + '\n')
 
