@@ -62,10 +62,10 @@ id2char, char2id = json.load((Path(data_dir) / 'all_chars_me.json').open())
 # load model
 config = BertConfig(str(Path(data_dir)/'subject_model_config.json'))
 subject_model = SubjectModel(config)
-subject_model.load_state_dict(torch.load(Path(data_dir)/'subject_model.pt'))
+subject_model.load_state_dict(torch.load(Path(data_dir)/'subject_model.pt', map_location='cpu' if not torch.cuda.is_available() else None))
 
 object_model = ObjectModel()
-object_model.load_state_dict(torch.load(Path(data_dir)/'object_model.pt'))
+object_model.load_state_dict(torch.load(Path(data_dir)/'object_model.pt', map_location='cpu' if not torch.cuda.is_available() else None))
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
@@ -154,14 +154,19 @@ def extract_items(text_in):
         return []
 
 output_path = (Path(data_dir)/'submision.json').open('w')
+cnt = 0
 for l in tqdm((Path(data_dir)/'develop.json').open()):
-    doc = json.loads(l)
-    text = doc['text']
-    R = extract_items(text)
-    doc.update({
-        'mention_data': [{'kb_id':r[2],'mention':r[0],'offset':str(r[1])} for r in R]
-    })
-    output_path.write(json.dumps(doc) + '\n')
+    cnt += 1
+    try:
+        doc = json.loads(l)
+        text = doc['text']
+        R = extract_items(text)
+        doc.update({
+            'mention_data': [{'kb_id':r[2],'mention':r[0],'offset':str(r[1])} for r in R]
+        })
+        output_path.write(json.dumps(doc, ensure_ascii=False) + '\n')
+    except Exception as e:
+        logger.warning(f'exception cnt: {cnt}')
 
 
 
