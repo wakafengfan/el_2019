@@ -65,7 +65,7 @@ for l in (Path(data_dir) / 'develop.json').open():
 id2char, char2id = json.load((Path(data_dir) / 'all_chars_me.json').open())
 
 # load model
-config = BertConfig(Path(data_dir)/'subject_model_config.json')
+config = BertConfig(str(Path(data_dir)/'subject_model_config.json'))
 subject_model = SubjectModel(config)
 subject_model.load_state_dict(torch.load(Path(data_dir)/'subject_model.pt'))
 
@@ -139,7 +139,7 @@ def extract_items(text_in):
             _X2 = torch.tensor(seq_padding(_X2), dtype=torch.long, device=device)  # [b,s2]
             _X2_MASK = torch.tensor(seq_padding(_X2_MASK), dtype=torch.long, device=device)
             _X2_SEG = torch.zeros(*_X2.size(), dtype=torch.long, device=device)
-            _Y = torch.tensor(seq_padding(_Y), dtype=torch.float32)
+            _Y = torch.tensor(seq_padding(_Y), dtype=torch.float32, device=device)
             _X1_HS = _x1_hs.expand(_X2.size(0), -1, -1)  # [b,s1]
             _X1_H = _x1_h.expand(_X2.size(0), -1)  # [b,s1]
             _input_mask = _input_mask.expand(_X2.size(0), -1)  # [b,s1]
