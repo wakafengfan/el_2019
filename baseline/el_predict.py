@@ -4,19 +4,14 @@ import logging
 from collections import defaultdict
 from itertools import groupby
 from pathlib import Path
-from random import choice
 
 import numpy as np
 import torch
-import torch.nn as nn
-import torch.nn.functional as F
-from pytorch_pretrained_bert import BertAdam
-from pytorch_pretrained_bert.modeling import BertPreTrainedModel, BertModel, BertConfig
+from pytorch_pretrained_bert.modeling import BertConfig
 from tqdm import tqdm
 
 from baseline.model_zoo import SubjectModel, ObjectModel
-from configuration.config import data_dir, bert_vocab_path, bert_model_path, bert_data_path
-
+from configuration.config import data_dir, bert_vocab_path
 
 min_count = 2
 mode = 0
@@ -159,7 +154,7 @@ def extract_items(text_in):
         return []
 
 output_path = (Path(data_dir)/'submision.json').open('w')
-for l in (Path(data_dir)/'develop.json').open():
+for l in tqdm((Path(data_dir)/'develop.json').open()):
     doc = json.loads(l)
     text = doc['text']
     R = extract_items(text)
