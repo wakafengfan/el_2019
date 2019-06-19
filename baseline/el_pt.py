@@ -6,12 +6,16 @@ from itertools import groupby
 from pathlib import Path
 from random import choice
 
+import gensim
+import jieba
 import numpy as np
 import torch
 import torch.nn as nn
 from pytorch_pretrained_bert import BertAdam
+from torch.utils.data import DataLoader, TensorDataset
 from tqdm import tqdm
 
+from baseline.match import match2
 from baseline.model_zoo import SubjectModel, ObjectModel
 from configuration.config import data_dir, bert_vocab_path, bert_model_path, bert_data_path
 
@@ -40,8 +44,7 @@ for l in (Path(data_dir) / 'kb_data').open():
         else:
             subject_desc += f'{i["predicate"]}:{i["object"]}\n'
 
-    # subject_desc = '\n'.join(f'{i["predicate"]}: {i["object"]}' for i in _['data'])
-    subject_desc = subject_desc[:300].lower()
+    subject_desc = subject_desc[:150].lower()
     if subject_desc:
         id2kb[subject_id] = {'subject_alias': subject_alias, 'subject_desc': subject_desc}
 
@@ -110,7 +113,23 @@ def load_vocab(vocab_file):
 
 
 bert_vocab = load_vocab(bert_vocab_path)
+wv_model = gensim.models.KeyedVectors.load(str(Path(data_dir)/'tencent_embed_for_el2019'))
+word2vec = wv_model.wv.syn0
+word_size = word2vec.shape[1]
+word2vec = np.concatenate([np.zeros((1,word_size)), np.zeros((1,word_size)),word2vec])  # [word_size+2,200]
+id2word = {i+2:j for i,j in enumerate(wv_model.wv.index2word)}
+word2id = {j:i for i, j in id2word.items()}
 
+def seq2vec(token_ids):
+    V = []
+    for s in token_ids:
+        V.append([])
+        for w in s:
+            for _ in w:
+                V[-1].append(word2id.get(w, 1))
+    V = seq_padding(V)
+    V = word2vec[V]
+    return V
 
 class data_generator:
     def __init__(self, data, batch_size=64):
@@ -126,10 +145,12 @@ class data_generator:
     def __iter__(self):
         idxs = list(range(len(self.data)))
         np.random.shuffle(idxs)
-        X1, X2, S1, S2, Y, T, X1_MASK, X2_MASK = [], [], [], [], [], [], [], []
+        X1, X2, S1, S2, Y, T, X1_MASK, X2_MASK,TT,TT2 = [], [], [], [], [], [], [], [],[],[]
         for i in idxs:
             d = self.data[i]
-            text = d['text']
+            text_tokens = d['text_words'].split()
+            text = ''.join(text_tokens)
+
             x1 = [bert_vocab.get(c, bert_vocab.get('[UNK]')) for c in text]
             x1_mask = [1] * len(x1)
             s1, s2 = np.zeros(len(text)), np.zeros(len(text))
@@ -152,6 +173,8 @@ class data_generator:
                 else:
                     t = [0]
                 x2 = id2kb[x2]['subject_desc']
+                x2_tokens = jieba.lcut(x2)
+                x2 = ''.join(x2_tokens)
                 x2 = [bert_vocab.get(c, bert_vocab.get('[UNK]')) for c in x2]
                 x2_mask = [1] * len(x2)
                 X1.append(x1)
@@ -162,6 +185,8 @@ class data_generator:
                 T.append(t)
                 X1_MASK.append(x1_mask)
                 X2_MASK.append(x2_mask)
+                TT.append(text_tokens)
+                TT2.append(x2_tokens)
                 if len(X1) == self.batch_size or i == idxs[-1]:
                     X1 = torch.tensor(seq_padding(X1), dtype=torch.long)  # [b,s1]
                     X2 = torch.tensor(seq_padding(X2), dtype=torch.long)  # [b,s2]
@@ -173,9 +198,11 @@ class data_generator:
                     X2_MASK = torch.tensor(seq_padding(X2_MASK), dtype=torch.long)
                     X1_SEG = torch.zeros(*X1.size(), dtype=torch.long)
                     X2_SEG = torch.zeros(*X2.size(), dtype=torch.long)
+                    TT = torch.tensor(seq2vec(TT), dtype=torch.float32)
+                    TT2 = torch.tensor(seq2vec(TT2), dtype=torch.float32)
 
-                    yield [X1, X2, S1, S2, Y, T, X1_MASK, X2_MASK, X1_SEG, X2_SEG]
-                    X1, X2, S1, S2, Y, T, X1_MASK, X2_MASK = [], [], [], [], [], [], [], []
+                    yield [X1, X2, S1, S2, Y, T, X1_MASK, X2_MASK, X1_SEG, X2_SEG,TT,TT2]
+                    X1, X2, S1, S2, Y, T, X1_MASK, X2_MASK,TT,TT2 = [], [], [], [], [], [], [], [],[],[]
 
 
 
@@ -220,14 +247,16 @@ optimizer = BertAdam(optimizer_grouped_parameters,
 
 
 def extract_items(text_in):
-    _s = [bert_vocab.get(c, bert_vocab.get('[UNK]')) for c in text_in]
-    _input_mask = [1] * len(_s)
-    _s = torch.tensor([_s], dtype=torch.long, device=device)  # [1,s1]
-    _input_mask = torch.tensor([_input_mask], dtype=torch.long, device=device)
-    _segment_ids = torch.zeros(*_s.size(), dtype=torch.long, device=device)
+    _x1_tokens = jieba.lcut(text_in)
+    _x1 = ''.join(_x1_tokens)
+    _X1 = [bert_vocab.get(c, bert_vocab.get('[UNK]')) for c in _x1]
+    _X1_MASK = [1] * len(_X1)
+    _X1 = torch.tensor([_X1], dtype=torch.long, device=device)  # [1,s1]
+    _X1_MASK = torch.tensor([_X1_MASK], dtype=torch.long, device=device)
+    _X1_SEG = torch.zeros(*_X1.size(), dtype=torch.long, device=device)
 
     with torch.no_grad():
-        _k1, _k2, _x1_hs, _x1_h = subject_model('x1', _s, _segment_ids, _input_mask)  # _k1:[1,s]
+        _k1, _k2, _x1_hs, _x1_h = subject_model('x1', _X1, _X1_SEG, _X1_MASK)  # _k1:[1,s]
         _k1 = _k1[0, :].detach().cpu().numpy()
         _k2 = _k2[0, :].detach().cpu().numpy()
         _k1, _k2 = np.where(_k1 > 0.5)[0], np.where(_k2 > 0.5)[0]
@@ -240,39 +269,60 @@ def extract_items(text_in):
                 j = j[0]
                 _subject = text_in[i:j + 1]
                 _subjects.append((_subject, i, j + 1))
+
+    # subject补余
+    for sup in match2(text_in):
+        _subjects.append(sup)
+    _subjects = list(set(_subjects))
+
     if _subjects:
         R = []
-        _X2, _X2_MASK, _Y = [], [], []
+        _X2, _X2_MASK, _Y,_X1_wv,_X2_wv = [], [], [],[],[]
         _S, _IDXS = [], {}
-        for _s in _subjects:
+        for _X1 in _subjects:
             _y = np.zeros(len(text_in))
-            _y[_s[1]:_s[2]] = 1
-            _IDXS[_s] = kb2id.get(_s[0], [])
-            for i in _IDXS[_s]:
+            _y[_X1[1]:_X1[2]] = 1
+            _IDXS[_X1] = kb2id.get(_X1[0], [])
+            for i in _IDXS[_X1]:
                 _x2 = id2kb[i]['subject_desc']
+                _x2_tokens= jieba.lcut(_x2)
+                _x2 = ''.join(_x2_tokens)
                 _x2 = [bert_vocab.get(c, bert_vocab.get('[UNK]')) for c in _x2]
                 _x2_mask = [1] * len(_x2)
+
                 _X2.append(_x2)
                 _X2_MASK.append(_x2_mask)
                 _Y.append(_y)
-                _S.append(_s)
+                _S.append(_X1)
+                _X1_wv.append(_x1_tokens)
+                _X2_wv.append(_x2_tokens)
         if _X2:
-            _X2 = torch.tensor(seq_padding(_X2), dtype=torch.long, device=device)  # [b,s2]
-            _X2_MASK = torch.tensor(seq_padding(_X2_MASK), dtype=torch.long, device=device)
-            _X2_SEG = torch.zeros(*_X2.size(), dtype=torch.long, device=device)
+            _O = []
+            _X2 = torch.tensor(seq_padding(_X2), dtype=torch.long)  # [b,s2]
+            _X2_MASK = torch.tensor(seq_padding(_X2_MASK), dtype=torch.long)
+            _X2_SEG = torch.zeros(*_X2.size(), dtype=torch.long)
             _Y = torch.tensor(seq_padding(_Y), dtype=torch.float32)
             _X1_HS = _x1_hs.expand(_X2.size(0), -1, -1)  # [b,s1]
             _X1_H = _x1_h.expand(_X2.size(0), -1)  # [b,s1]
-            _input_mask = _input_mask.expand(_X2.size(0), -1)  # [b,s1]
+            _X1_MASK = _X1_MASK.expand(_X2.size(0), -1)  # [b,s1]
+            _X1_wv = torch.tensor(seq2vec(_X1_wv), dtype=torch.float32)
+            _X2_wv = torch.tensor(seq2vec(_X2_wv), dtype=torch.float32)
 
-            with torch.no_grad():
-                _x2, _x2_h = subject_model('x2', None,None,None,_X2, _X2_SEG, _X2_MASK)
-                _o, _, _ = object_model(_X1_HS, _X1_H, _input_mask, _Y, _x2, _x2_h, _X2_MASK)  # _o:[b,1]
-                _o = _o.detach().cpu().numpy()
-                for k, v in groupby(zip(_S, _o), key=lambda x: x[0]):
-                    v = np.array([j[1] for j in v])
-                    kbid = _IDXS[k][np.argmax(v)]
-                    R.append((k[0], k[1], kbid))
+            eval_dataloader = DataLoader(TensorDataset(_X2,_X2_SEG, _X2_MASK,_X1_HS, _X1_H,_X1_MASK,_Y), batch_size=64)
+
+            for batch_idx, batch in eval_dataloader:
+                batch = tuple(t.to(device) for t in batch)
+                _X2, _X2_SEG, _X2_MASK, _X1_HS, _X1_H, _X1_MASK, _Y = batch
+                with torch.no_grad():
+                    _x2, _x2_h = subject_model('x2', None,None,None,_X2, _X2_SEG, _X2_MASK)
+                    _o, _, _ = object_model(_X1_HS, _X1_H, _X1_MASK, _Y, _x2, _x2_h, _X2_MASK)  # _o:[b,1]
+                    _o = _o.detach().cpu().numpy()
+                    _O.extend(_o)
+
+            for k, v in groupby(zip(_S, _O), key=lambda x: x[0]):
+                v = np.array([j[1] for j in v])
+                kbid = _IDXS[k][np.argmax(v)]
+                R.append((k[0], k[1], kbid))
         return R
     else:
         return []
@@ -293,14 +343,12 @@ for e in range(epoch_num):
 
     for batch in train_D:
         batch_idx += 1
-        if batch_idx > 1:
-            break
 
         batch = tuple(t.to(device) for t in batch)
-        X1, X2, S1, S2, Y, T, X1_MASK, X2_MASK, X1_SEG, X2_SEG = batch
+        X1, X2, S1, S2, Y, T, X1_MASK, X2_MASK, X1_SEG, X2_SEG, TT,TT2 = batch
         pred_s1, pred_s2, x1_hs, x1_h = subject_model('x1', X1, X1_SEG, X1_MASK)
         x2_hs, x2_h = subject_model('x2', None, None, None, X2, X2_SEG, X2_MASK)
-        pred_o, x1_mask_, x2_mask_ = object_model(x1_hs, x1_h, X1_MASK, Y, x2_hs, x2_h, X2_MASK)
+        pred_o, x1_mask_, x2_mask_ = object_model(x1_hs, x1_h, X1_MASK, Y, x2_hs, x2_h, X2_MASK, TT,TT2)
 
         s1_loss = b_loss_func(pred_s1, S1)  # [b,s]
         s2_loss = b_loss_func(pred_s2, S2)
@@ -331,11 +379,7 @@ for e in range(epoch_num):
     subject_model.eval()
     object_model.eval()
     A, B, C = 1e-10, 1e-10, 1e-10
-    tmp_idx = 0
     for d in tqdm(iter(dev_data)):
-        tmp_idx += 1
-        if tmp_idx>1:
-            break
         R = set(extract_items(d['text']))
         T = set(d['mention_data'])
         A += len(R & T)

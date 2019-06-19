@@ -153,10 +153,12 @@ def extract_items(text_in):
     else:
         return []
 
-output_path = (Path(data_dir)/'submision.json').open('w')
+output_path = (Path(data_dir)/'submision_.json').open('w')
 cnt = 0
 for l in tqdm((Path(data_dir)/'develop.json').open()):
     cnt += 1
+    if cnt not in [2867,5276,6059,8878,9400]:
+        continue
     try:
         doc = json.loads(l)
         text = doc['text']
