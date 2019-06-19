@@ -398,14 +398,14 @@ for e in range(epoch_num):
     err_dict = defaultdict(list)
     for d in tqdm(iter(dev_data)):
         R = set(extract_items(d['text']))
-        T = set(d['mention_data'])
+        T = list(map(lambda x: (x[0], str(x[1]), x[2]), set(d['mention_data'])))
         A += len(R & T)
         B += len(R)
         C += len(T)
 
         if R != T:
             err_dict['err'].append({'text': d['text'],
-                                    'mention_data': list(map(lambda x: (x[0], str(x[1]), x[2]), d['mention_data'])),
+                                    'mention_data': T,
                                     'predict': R})
 
     f1, precision, recall = 2 * A / (B + C), A / B, A / C

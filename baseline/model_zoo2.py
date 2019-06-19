@@ -12,25 +12,28 @@ class SubjectModel(BertPreTrainedModel):
         self.bert = BertModel(config)
 
         # cnn
-        self.bert_conv = nn.ModuleList([nn.Conv1d(in_channels=hidden_size, out_channels=hidden_size, kernel_size=k, padding=k - 1) for k in [2, 3, 4]])
-        self.word2vec_cnn = nn.ModuleList([nn.Conv1d(in_channels=hidden_size, out_channels=hidden_size, kernel_size=k, padding=k-1) for k in [2,3,4]])
+        self.bert_convs = nn.ModuleList([nn.Conv1d(in_channels=hidden_size, out_channels=hidden_size, kernel_size=k, padding=k - 1) for k in [2, 3, 4]])
+        self.word2vec_convs = nn.ModuleList([nn.Conv1d(in_channels=200, out_channels=200, kernel_size=k, padding=k - 1) for k in [2, 3, 4]])
+
+        # gru
+        self.gru = nn.GRU()
 
         self.linear1 = nn.Linear(in_features=hidden_size, out_features=1)
         self.linear2 = nn.Linear(in_features=hidden_size, out_features=1)
         self.apply(self.init_bert_weights)
 
-    def forward(self, flag, tt, tt2, x1_ids=None, x1_segments=None, x1_mask=None, x2_ids=None, x2_segments=None, x2_mask=None):
+    def forward(self, flag, tt, x1_ids=None, x1_segments=None, x1_mask=None, x2_ids=None, x2_segments=None, x2_mask=None):
         if flag == 'x1':
 
             # bert
             x1_encoder_layers, x1_pooled_out = self.bert(x1_ids, x1_segments, x1_mask, output_all_encoded_layers=False)
 
             # bert + cnn
-            x1_bert_cnn = self.bert_conv(x1_encoder_layers.permute(0, 2, 1))
-
-            # word2vec
+            x1_bert_cnn = [F.relu(bert_conv(x1_encoder_layers.permute(0, 2, 1))).permute(0,2,1) for bert_conv in self.bert_convs]  # [(b,s,h),...,]
+            x1_bert_cnn = torch.cat(x1_bert_cnn, dim=-1)  # [b,s,h*3]
 
             # word2vec + cnn
+            x1_wv_conv = [F.relu(wv_conv(tt.permute(0,2,1))).permute(0,2,1) for wv_conv in self.word2vec_convs]  # [(b,s,200)]
 
             # GRU
 
