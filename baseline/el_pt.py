@@ -11,7 +11,7 @@ import jieba
 import numpy as np
 import torch
 import torch.nn as nn
-from pytorch_pretrained_bert import BertAdam
+from pytorch_pretrained_bert import BertAdam, BertConfig
 from torch.utils.data import DataLoader, TensorDataset
 from tqdm import tqdm
 
@@ -22,7 +22,7 @@ from configuration.config import data_dir, bert_vocab_path, bert_model_path, ber
 min_count = 2
 mode = 0
 hidden_size = 768
-epoch_num = 50
+epoch_num = 1
 batch_size = 64
 
 logging.basicConfig(format='%(asctime)s - %(levelname)s - %(name)s - %(message)s',
@@ -44,7 +44,7 @@ for l in (Path(data_dir) / 'kb_data').open():
         else:
             subject_desc += f'{i["predicate"]}:{i["object"]}\n'
 
-    subject_desc = subject_desc[:150].lower()
+    subject_desc = subject_desc[:300].lower()
     if subject_desc:
         id2kb[subject_id] = {'subject_alias': subject_alias, 'subject_desc': subject_desc}
 
@@ -59,7 +59,7 @@ for l in tqdm(json.load((Path(data_dir) / 'train_data_me.json').open())):
         'text': l['text'].lower(),
         'mention_data': [(x['mention'], int(x['offset']), x['kb_id'])
                          for x in l['mention_data'] if x['kb_id'] != 'NIL'],
-        'text_words': list(map(lambda x:x.lower(), l['text_words']))
+        'text_words': list(map(lambda x: x.lower(), l['text_words']))
     })
 
 if not (Path(data_dir) / 'all_chars_me.json').exists():
@@ -113,12 +113,13 @@ def load_vocab(vocab_file):
 
 
 bert_vocab = load_vocab(bert_vocab_path)
-wv_model = gensim.models.KeyedVectors.load(str(Path(data_dir)/'tencent_embed_for_el2019'))
+wv_model = gensim.models.KeyedVectors.load(str(Path(data_dir) / 'tencent_embed_for_el2019'))
 word2vec = wv_model.wv.syn0
 word_size = word2vec.shape[1]
-word2vec = np.concatenate([np.zeros((1,word_size)), np.zeros((1,word_size)),word2vec])  # [word_size+2,200]
-id2word = {i+2:j for i,j in enumerate(wv_model.wv.index2word)}
-word2id = {j:i for i, j in id2word.items()}
+word2vec = np.concatenate([np.zeros((1, word_size)), np.zeros((1, word_size)), word2vec])  # [word_size+2,200]
+id2word = {i + 2: j for i, j in enumerate(wv_model.wv.index2word)}
+word2id = {j: i for i, j in id2word.items()}
+
 
 def seq2vec(token_ids):
     V = []
@@ -130,6 +131,7 @@ def seq2vec(token_ids):
     V = seq_padding(V)
     V = word2vec[V]
     return V
+
 
 class data_generator:
     def __init__(self, data, batch_size=64):
@@ -145,7 +147,7 @@ class data_generator:
     def __iter__(self):
         idxs = list(range(len(self.data)))
         np.random.shuffle(idxs)
-        X1, X2, S1, S2, Y, T, X1_MASK, X2_MASK,TT,TT2 = [], [], [], [], [], [], [], [],[],[]
+        X1, X2, S1, S2, Y, T, X1_MASK, X2_MASK, TT, TT2 = [], [], [], [], [], [], [], [], [], []
         for i in idxs:
             d = self.data[i]
             text_tokens = d['text_words']
@@ -202,18 +204,26 @@ class data_generator:
                     TT = torch.tensor(seq2vec(TT), dtype=torch.float32)
                     TT2 = torch.tensor(seq2vec(TT2), dtype=torch.float32)
 
-                    yield [X1, X2, S1, S2, Y, T, X1_MASK, X2_MASK, X1_SEG, X2_SEG,TT,TT2]
-                    X1, X2, S1, S2, Y, T, X1_MASK, X2_MASK,TT,TT2 = [], [], [], [], [], [], [], [],[],[]
-
-
-
+                    yield [X1, X2, S1, S2, Y, T, X1_MASK, X2_MASK, X1_SEG, X2_SEG, TT, TT2]
+                    X1, X2, S1, S2, Y, T, X1_MASK, X2_MASK, TT, TT2 = [], [], [], [], [], [], [], [], [], []
 
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 n_gpu = torch.cuda.device_count()
 
-subject_model = SubjectModel.from_pretrained(pretrained_model_name_or_path=bert_model_path, cache_dir=bert_data_path)
-object_model = ObjectModel()
+pretrain = False
+if pretrain:
+    config = BertConfig(str(Path(data_dir) / 'subject_model_config.json'))
+    subject_model = SubjectModel(config)
+    subject_model.load_state_dict(
+        torch.load(Path(data_dir) / 'subject_model.pt', map_location='cpu' if not torch.cuda.is_available() else None))
+
+    object_model = ObjectModel()
+    object_model.load_state_dict(
+        torch.load(Path(data_dir) / 'object_model.pt', map_location='cpu' if not torch.cuda.is_available() else None))
+else:
+    subject_model = SubjectModel.from_pretrained(pretrained_model_name_or_path=bert_model_path, cache_dir=bert_data_path)
+    object_model = ObjectModel()
 
 subject_model.to(device)
 object_model.to(device)
@@ -280,7 +290,7 @@ def extract_items(text_in):
 
     if _subjects:
         R = []
-        _X2, _X2_MASK, _Y,_X1_wv,_X2_wv = [], [], [],[],[]
+        _X2, _X2_MASK, _Y, _X1_wv, _X2_wv = [], [], [], [], []
         _S, _IDXS = [], {}
         for _X1 in _subjects:
             if _X1[0] in ['的']:
@@ -290,7 +300,7 @@ def extract_items(text_in):
             _IDXS[_X1] = kb2id.get(_X1[0], [])
             for i in _IDXS[_X1]:
                 _x2 = id2kb[i]['subject_desc']
-                _x2_tokens= jieba.lcut(_x2)
+                _x2_tokens = jieba.lcut(_x2)
                 _x2 = ''.join(_x2_tokens)
                 _x2 = [bert_vocab.get(c, bert_vocab.get('[UNK]')) for c in _x2]
                 _x2_mask = [1] * len(_x2)
@@ -313,14 +323,16 @@ def extract_items(text_in):
             _X1_wv = torch.tensor(seq2vec(_X1_wv), dtype=torch.float32)
             _X2_wv = torch.tensor(seq2vec(_X2_wv), dtype=torch.float32)
 
-            eval_dataloader = DataLoader(TensorDataset(_X2,_X2_SEG, _X2_MASK,_X1_HS, _X1_H,_X1_MASK,_Y,_X1_wv,_X2_wv), batch_size=64)
+            eval_dataloader = DataLoader(
+                TensorDataset(_X2, _X2_SEG, _X2_MASK, _X1_HS, _X1_H, _X1_MASK, _Y, _X1_wv, _X2_wv), batch_size=64)
 
             for batch_idx, batch in enumerate(eval_dataloader):
                 batch = tuple(t.to(device) for t in batch)
-                _X2, _X2_SEG, _X2_MASK, _X1_HS, _X1_H, _X1_MASK, _Y,_X1_wv,_X2_wv = batch
+                _X2, _X2_SEG, _X2_MASK, _X1_HS, _X1_H, _X1_MASK, _Y, _X1_wv, _X2_wv = batch
                 with torch.no_grad():
-                    _x2, _x2_h = subject_model('x2', None,None,None,_X2, _X2_SEG, _X2_MASK)
-                    _o, _, _ = object_model(_X1_HS, _X1_H, _X1_MASK, _Y, _x2, _x2_h, _X2_MASK,_X1_wv,_X2_wv)  # _o:[b,1]
+                    _x2, _x2_h = subject_model('x2', None, None, None, _X2, _X2_SEG, _X2_MASK)
+                    _o, _, _ = object_model(_X1_HS, _X1_H, _X1_MASK, _Y, _x2, _x2_h, _X2_MASK, _X1_wv,
+                                            _X2_wv)  # _o:[b,1]
                     _o = _o.detach().cpu().numpy()
                     _O.extend(_o)
 
@@ -328,56 +340,57 @@ def extract_items(text_in):
                 v = np.array([j[1] for j in v])
                 kbid = _IDXS[k][np.argmax(v)]
                 R.append((k[0], k[1], kbid))
-        return R
+        return list(set(R))
     else:
         return []
+
 
 best_score = 0
 best_epoch = 0
 train_D = data_generator(train_data)
 for e in range(epoch_num):
-    subject_model.train()
-    object_model.train()
-    batch_idx = 0
-    tr_total_loss = 0
-    dev_total_loss = 0
-
-    for batch in train_D:
-        batch_idx += 1
-        if batch_idx > 1:
-            break
-
-        batch = tuple(t.to(device) for t in batch)
-        X1, X2, S1, S2, Y, T, X1_MASK, X2_MASK, X1_SEG, X2_SEG, TT,TT2 = batch
-        pred_s1, pred_s2, x1_hs, x1_h = subject_model('x1', X1, X1_SEG, X1_MASK)
-        x2_hs, x2_h = subject_model('x2', None, None, None, X2, X2_SEG, X2_MASK)
-        pred_o, x1_mask_, x2_mask_ = object_model(x1_hs, x1_h, X1_MASK, Y, x2_hs, x2_h, X2_MASK, TT,TT2)
-
-        s1_loss = b_loss_func(pred_s1, S1)  # [b,s]
-        s2_loss = b_loss_func(pred_s2, S2)
-
-        s1_loss.masked_fill_(x1_mask_, 0)
-        s2_loss.masked_fill_(x1_mask_, 0)
-
-        total_ele = X1.size(0) * X1.size(1) - torch.sum(x1_mask_)
-        s1_loss = torch.sum(s1_loss) / total_ele
-        s2_loss = torch.sum(s2_loss) / total_ele
-
-        po_loss = b2_loss_func(pred_o, T)
-
-        tmp_loss = (s1_loss + s2_loss) + po_loss
-
-        if n_gpu > 1:
-            tmp_loss = tmp_loss.mean()
-
-        tmp_loss.backward()
-
-        optimizer.step()
-        optimizer.zero_grad()
-
-        tr_total_loss += tmp_loss.item()
-        if batch_idx % 100 == 0:
-            logger.info(f'Epoch:{e} - batch:{batch_idx}/{train_D.steps} - loss: {tr_total_loss / batch_idx:.8f}')
+    # subject_model.train()
+    # object_model.train()
+    # batch_idx = 0
+    # tr_total_loss = 0
+    # dev_total_loss = 0
+    #
+    # for batch in train_D:
+    #     batch_idx += 1
+    #     if batch_idx > 1:
+    #         break
+    #
+    #     batch = tuple(t.to(device) for t in batch)
+    #     X1, X2, S1, S2, Y, T, X1_MASK, X2_MASK, X1_SEG, X2_SEG, TT, TT2 = batch
+    #     pred_s1, pred_s2, x1_hs, x1_h = subject_model('x1', X1, X1_SEG, X1_MASK)
+    #     x2_hs, x2_h = subject_model('x2', None, None, None, X2, X2_SEG, X2_MASK)
+    #     pred_o, x1_mask_, x2_mask_ = object_model(x1_hs, x1_h, X1_MASK, Y, x2_hs, x2_h, X2_MASK, TT, TT2)
+    #
+    #     s1_loss = b_loss_func(pred_s1, S1)  # [b,s]
+    #     s2_loss = b_loss_func(pred_s2, S2)
+    #
+    #     s1_loss.masked_fill_(x1_mask_, 0)
+    #     s2_loss.masked_fill_(x1_mask_, 0)
+    #
+    #     total_ele = X1.size(0) * X1.size(1) - torch.sum(x1_mask_)
+    #     s1_loss = torch.sum(s1_loss) / total_ele
+    #     s2_loss = torch.sum(s2_loss) / total_ele
+    #
+    #     po_loss = b2_loss_func(pred_o, T)
+    #
+    #     tmp_loss = (s1_loss + s2_loss) + po_loss
+    #
+    #     if n_gpu > 1:
+    #         tmp_loss = tmp_loss.mean()
+    #
+    #     tmp_loss.backward()
+    #
+    #     optimizer.step()
+    #     optimizer.zero_grad()
+    #
+    #     tr_total_loss += tmp_loss.item()
+    #     if batch_idx % 100 == 0:
+    #         logger.info(f'Epoch:{e} - batch:{batch_idx}/{train_D.steps} - loss: {tr_total_loss / batch_idx:.8f}')
 
     subject_model.eval()
     object_model.eval()
@@ -392,8 +405,8 @@ for e in range(epoch_num):
 
         if R != T:
             err_dict['err'].append({'text': d['text'],
-                                    'mention_data': list(map(lambda x: str(x[1]), d['mention_data'])),
-                                    'predict': list(map(lambda x: str(x[1]), R))})
+                                    'mention_data': list(map(lambda x: (x[0], str(x[1]), x[2]), d['mention_data'])),
+                                    'predict': R})
 
     f1, precision, recall = 2 * A / (B + C), A / B, A / C
     if f1 > best_score:
