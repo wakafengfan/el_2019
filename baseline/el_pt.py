@@ -22,7 +22,7 @@ from configuration.config import data_dir, bert_vocab_path, bert_model_path, ber
 min_count = 2
 mode = 0
 hidden_size = 768
-epoch_num = 10
+epoch_num = 50
 batch_size = 64
 
 logging.basicConfig(format='%(asctime)s - %(levelname)s - %(name)s - %(message)s',
@@ -54,12 +54,12 @@ for i, j in id2kb.items():
         kb2id[k].append(i)
 
 train_data = []
-for l in (Path(data_dir) / 'train.json').open():
-    _ = json.loads(l)
+for l in tqdm(json.load((Path(data_dir) / 'train_data_me.json').open())):
     train_data.append({
-        'text': _['text'].lower(),
+        'text': l['text'].lower(),
         'mention_data': [(x['mention'], int(x['offset']), x['kb_id'])
-                         for x in _['mention_data'] if x['kb_id'] != 'NIL']
+                         for x in l['mention_data'] if x['kb_id'] != 'NIL'],
+        'text_words': list(map(lambda x:x.lower(), l['text_words']))
     })
 
 if not (Path(data_dir) / 'all_chars_me.json').exists():
@@ -94,7 +94,7 @@ train_data = [train_data[j] for i, j in enumerate(random_order) if i % 9 != mode
 
 def seq_padding(X):
     ML = max(map(len, X))
-    return [list(x) + [0] * (ML - len(x)) for x in X]
+    return np.array([list(x) + [0] * (ML - len(x)) for x in X])
 
 
 def load_vocab(vocab_file):
@@ -148,8 +148,9 @@ class data_generator:
         X1, X2, S1, S2, Y, T, X1_MASK, X2_MASK,TT,TT2 = [], [], [], [], [], [], [], [],[],[]
         for i in idxs:
             d = self.data[i]
-            text_tokens = d['text_words'].split()
-            text = ''.join(text_tokens)
+            text_tokens = d['text_words']
+            text = d['text']
+            assert len(text) == len(''.join(text_tokens))
 
             x1 = [bert_vocab.get(c, bert_vocab.get('[UNK]')) for c in text]
             x1_mask = [1] * len(x1)
@@ -249,6 +250,8 @@ optimizer = BertAdam(optimizer_grouped_parameters,
 def extract_items(text_in):
     _x1_tokens = jieba.lcut(text_in)
     _x1 = ''.join(_x1_tokens)
+    assert len(_x1) == len(text_in)
+
     _X1 = [bert_vocab.get(c, bert_vocab.get('[UNK]')) for c in _x1]
     _X1_MASK = [1] * len(_X1)
     _X1 = torch.tensor([_X1], dtype=torch.long, device=device)  # [1,s1]
@@ -280,8 +283,10 @@ def extract_items(text_in):
         _X2, _X2_MASK, _Y,_X1_wv,_X2_wv = [], [], [],[],[]
         _S, _IDXS = [], {}
         for _X1 in _subjects:
+            if _X1[0] in ['的']:
+                continue
             _y = np.zeros(len(text_in))
-            _y[_X1[1]:_X1[2]] = 1
+            _y[int(_X1[1]):int(_X1[2])] = 1
             _IDXS[_X1] = kb2id.get(_X1[0], [])
             for i in _IDXS[_X1]:
                 _x2 = id2kb[i]['subject_desc']
@@ -308,14 +313,14 @@ def extract_items(text_in):
             _X1_wv = torch.tensor(seq2vec(_X1_wv), dtype=torch.float32)
             _X2_wv = torch.tensor(seq2vec(_X2_wv), dtype=torch.float32)
 
-            eval_dataloader = DataLoader(TensorDataset(_X2,_X2_SEG, _X2_MASK,_X1_HS, _X1_H,_X1_MASK,_Y), batch_size=64)
+            eval_dataloader = DataLoader(TensorDataset(_X2,_X2_SEG, _X2_MASK,_X1_HS, _X1_H,_X1_MASK,_Y,_X1_wv,_X2_wv), batch_size=64)
 
-            for batch_idx, batch in eval_dataloader:
+            for batch_idx, batch in enumerate(eval_dataloader):
                 batch = tuple(t.to(device) for t in batch)
-                _X2, _X2_SEG, _X2_MASK, _X1_HS, _X1_H, _X1_MASK, _Y = batch
+                _X2, _X2_SEG, _X2_MASK, _X1_HS, _X1_H, _X1_MASK, _Y,_X1_wv,_X2_wv = batch
                 with torch.no_grad():
                     _x2, _x2_h = subject_model('x2', None,None,None,_X2, _X2_SEG, _X2_MASK)
-                    _o, _, _ = object_model(_X1_HS, _X1_H, _X1_MASK, _Y, _x2, _x2_h, _X2_MASK)  # _o:[b,1]
+                    _o, _, _ = object_model(_X1_HS, _X1_H, _X1_MASK, _Y, _x2, _x2_h, _X2_MASK,_X1_wv,_X2_wv)  # _o:[b,1]
                     _o = _o.detach().cpu().numpy()
                     _O.extend(_o)
 
@@ -326,10 +331,6 @@ def extract_items(text_in):
         return R
     else:
         return []
-
-
-err_log = (Path(data_dir) / 'err_log.json').open('w')
-err_dict = defaultdict(list)
 
 best_score = 0
 best_epoch = 0
@@ -343,6 +344,8 @@ for e in range(epoch_num):
 
     for batch in train_D:
         batch_idx += 1
+        if batch_idx > 1:
+            break
 
         batch = tuple(t.to(device) for t in batch)
         X1, X2, S1, S2, Y, T, X1_MASK, X2_MASK, X1_SEG, X2_SEG, TT,TT2 = batch
@@ -379,6 +382,7 @@ for e in range(epoch_num):
     subject_model.eval()
     object_model.eval()
     A, B, C = 1e-10, 1e-10, 1e-10
+    err_dict = defaultdict(list)
     for d in tqdm(iter(dev_data)):
         R = set(extract_items(d['text']))
         T = set(d['mention_data'])
@@ -396,7 +400,7 @@ for e in range(epoch_num):
         best_score = f1
         best_epoch = e
 
-        json.dump(err_dict, err_log, ensure_ascii=False)
+        json.dump(err_dict, (Path(data_dir) / 'err_log.json').open('w'), ensure_ascii=False)
 
         s_model_to_save = subject_model.module if hasattr(subject_model, 'module') else subject_model
         o_model_to_save = object_model.module if hasattr(object_model, 'module') else object_model

@@ -13,5 +13,5 @@ w2v_file = get_tmpfile(Path(data_dir)/'tmpfile')
 glove2word2vec(glove_file, w2v_file)
 
 m = gensim.models.KeyedVectors.load_word2vec_format(w2v_file)
-m.save(str(Path(data_dir)/'tencen_embed_for_el2019'))
+m.save(str(Path(data_dir)/'tencent_embed_for_el2019'))
 

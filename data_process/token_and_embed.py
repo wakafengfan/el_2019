@@ -18,7 +18,7 @@ if not (Path(data_dir)/'train_data_me.json').exists():
         doc = json.loads(doc)
         text = doc['text']
         text_word = [i.lower() for i in jieba.lcut(text)]
-        doc.update({'text_words':' '.join(text_word)})
+        doc.update({'text_words':text_word})
         train_data.append(doc)
 
         word_set.update(text_word)
@@ -27,7 +27,7 @@ if not (Path(data_dir)/'train_data_me.json').exists():
     json.dump(train_data, train_upt_path, indent=4, ensure_ascii=False)
 else:
     for doc in tqdm(json.load((Path(data_dir)/'train_data_me.json').open())):
-        text_word = doc['text_words'].split()
+        text_word = doc['text_words']
 
         word_set.update(text_word)
 
@@ -37,7 +37,7 @@ if not (Path(data_dir)/'dev_data_me.json').exists():
         doc = json.loads(doc)
         text = doc['text']
         text_word = [i.lower() for i in jieba.lcut(text)]
-        doc.update({'text_words':' '.join(text_word)})
+        doc.update({'text_words':text_word})
         dev_data.append(doc)
 
         word_set.update(text_word)
@@ -46,7 +46,7 @@ if not (Path(data_dir)/'dev_data_me.json').exists():
     json.dump(dev_data, dev_upt_path, indent=4, ensure_ascii=False)
 else:
     for doc in tqdm(json.load((Path(data_dir)/'dev_data_me.json').open())):
-        text_word = doc['text_words'].split()
+        text_word = doc['text_words']
 
         word_set.update(text_word)
 
