@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from pytorch_pretrained_bert.modeling import BertPreTrainedModel, BertModel
-
+import numpy as np
 hidden_size = 768
 
 
@@ -12,34 +12,47 @@ class SubjectModel(BertPreTrainedModel):
         self.bert = BertModel(config)
 
         # cnn
-        self.bert_convs = nn.ModuleList([nn.Conv1d(in_channels=hidden_size, out_channels=hidden_size, kernel_size=k, padding=k - 1) for k in [2, 3, 4]])
-        self.word2vec_convs = nn.ModuleList([nn.Conv1d(in_channels=200, out_channels=200, kernel_size=k, padding=k - 1) for k in [2, 3, 4]])
+        self.bert_convs = nn.ModuleList([nn.Conv1d(in_channels=hidden_size,
+                                                   out_channels=hidden_size,
+                                                   kernel_size=k) for k in [2, 3, 4]
+                                         ])
+        self.word2vec_convs = nn.ModuleList([nn.Conv1d(in_channels=200,
+                                                       out_channels=200,
+                                                       kernel_size=k) for k in [2, 3, 4]])
 
         # gru
-        self.gru = nn.GRU()
+        self.gru = nn.GRU(input_size=200, hidden_size=200, bidirectional=True)
 
-        self.linear1 = nn.Linear(in_features=hidden_size, out_features=1)
-        self.linear2 = nn.Linear(in_features=hidden_size, out_features=1)
+        self.linear1 = nn.Linear(in_features=hidden_size*4 + 200*5, out_features=1)
+        self.linear2 = nn.Linear(in_features=hidden_size*4 + 200*5, out_features=1)
         self.apply(self.init_bert_weights)
 
-    def forward(self, flag, tt, x1_ids=None, x1_segments=None, x1_mask=None, x2_ids=None, x2_segments=None, x2_mask=None):
+    def forward(self, flag, tt=None, x1_ids=None, x1_segments=None, x1_mask=None, x2_ids=None, x2_segments=None, x2_mask=None):
         if flag == 'x1':
 
             # bert
             x1_encoder_layers, x1_pooled_out = self.bert(x1_ids, x1_segments, x1_mask, output_all_encoded_layers=False)
 
             # bert + cnn
-            x1_bert_cnn = [F.relu(bert_conv(x1_encoder_layers.permute(0, 2, 1))).permute(0,2,1) for bert_conv in self.bert_convs]  # [(b,s,h),...,]
-            x1_bert_cnn = torch.cat(x1_bert_cnn, dim=-1)  # [b,s,h*3]
+            b,_,h = x1_encoder_layers.size()
+            x1_bert_conv = [F.relu(bert_conv(torch.cat([x1_encoder_layers.permute(0, 2, 1), torch.zeros(b,h,k-1)], dim=-1))).permute(0,2,1)
+                            for bert_conv, k in zip(self.bert_convs, [2,3,4])]  # [(b,s,h),...,]
+            x1_bert_conv = torch.cat(x1_bert_conv, dim=-1)  # [b,s,h*3]
 
             # word2vec + cnn
-            x1_wv_conv = [F.relu(wv_conv(tt.permute(0,2,1))).permute(0,2,1) for wv_conv in self.word2vec_convs]  # [(b,s,200)]
+            b,_,h = tt.size()
+            x1_wv_conv = [F.relu(wv_conv(torch.cat([tt.permute(0,2,1), torch.zeros(b,h,k-1)], dim=-1))).permute(0,2,1)
+                          for wv_conv, k in zip(self.word2vec_convs, [2,3,4])]  # [(b,s,200)]
+            x1_wv_conv = torch.cat(x1_wv_conv, dim=-1)  #[b,s,200*3]
 
             # GRU
+            x1_wv_gru,_ = self.gru(tt)  # [b,s,200*2]
+
+            x1 = torch.cat([x1_encoder_layers, x1_bert_conv, x1_wv_conv, x1_wv_gru], dim=-1)  # [b,s,h+h*3+200*3+200*2]
 
 
-            ps1 = torch.sigmoid(self.linear1(x1_encoder_layers).squeeze(-1))
-            ps2 = torch.sigmoid(self.linear2(x1_encoder_layers).squeeze(-1))
+            ps1 = torch.sigmoid(self.linear1(x1).squeeze(-1))
+            ps2 = torch.sigmoid(self.linear2(x1).squeeze(-1))
 
             return ps1, ps2, x1_encoder_layers, x1_pooled_out
         else:
