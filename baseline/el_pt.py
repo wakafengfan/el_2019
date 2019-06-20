@@ -16,7 +16,7 @@ from torch.utils.data import DataLoader, TensorDataset
 from tqdm import tqdm
 
 from baseline.match import match2
-from baseline.model_zoo2 import SubjectModel, ObjectModel
+from baseline.model_zoo3 import SubjectModel, ObjectModel
 from configuration.config import data_dir, bert_vocab_path, bert_model_path, bert_data_path
 
 min_count = 2
@@ -211,7 +211,7 @@ class data_generator:
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 n_gpu = torch.cuda.device_count()
 
-pretrain = False
+pretrain = True
 if pretrain:
     config = BertConfig(str(Path(data_dir) / 'subject_model_config.json'))
     subject_model = SubjectModel(config)
@@ -299,7 +299,10 @@ def extract_items(text_in):
             _y = np.zeros(len(text_in))
             _y[int(_X1[1]):int(_X1[2])] = 1
             _IDXS[_X1] = kb2id.get(_X1[0], [])
-            for i in _IDXS[_X1]:
+            # 每个subject只取10个链指
+            for idx, i in enumerate(_IDXS[_X1]):
+                if idx > 9:
+                    break
                 _x2 = id2kb[i]['subject_desc']
                 _x2_tokens = jieba.lcut(_x2)
                 _x2 = ''.join(_x2_tokens)
@@ -313,7 +316,6 @@ def extract_items(text_in):
                 _X2_wv.append(_x2_tokens)
         if _X2:
             _O = []
-            _X2, _X2_MASK,_X2_wv,_Y,_S = _X2[:10], _X2_MASK[:10],_X2_wv[:10],_Y[:10],_S[:10]
             _X2 = torch.tensor(seq_padding(_X2), dtype=torch.long)  # [b,s2]
             _X2_MASK = torch.tensor(seq_padding(_X2_MASK), dtype=torch.long)
             _X2_SEG = torch.zeros(*_X2.size(), dtype=torch.long)
@@ -325,11 +327,9 @@ def extract_items(text_in):
             _X2_wv = torch.tensor(seq2vec(_X2_wv), dtype=torch.float32)
 
             eval_dataloader = DataLoader(
-                TensorDataset(_X2, _X2_SEG, _X2_MASK, _X1_HS, _X1_H, _X1_MASK, _Y, _X1_wv, _X2_wv), batch_size=10)
+                TensorDataset(_X2, _X2_SEG, _X2_MASK, _X1_HS, _X1_H, _X1_MASK, _Y, _X1_wv, _X2_wv), batch_size=64)
 
             for batch_idx, batch in enumerate(eval_dataloader):
-                if batch_idx > 0:  # 只取前10个
-                    break
                 batch = tuple(t.to(device) for t in batch)
                 _X2, _X2_SEG, _X2_MASK, _X1_HS, _X1_H, _X1_MASK, _Y, _X1_wv, _X2_wv = batch
                 with torch.no_grad():
@@ -351,49 +351,49 @@ def extract_items(text_in):
 best_score = 0
 best_epoch = 0
 train_D = data_generator(train_data)
-for e in range(epoch_num):
-    subject_model.train()
-    object_model.train()
-    batch_idx = 0
-    tr_total_loss = 0
-    dev_total_loss = 0
-
-    for batch in train_D:
-        batch_idx += 1
-        # if batch_idx > 1:
-        #     break
-
-        batch = tuple(t.to(device) for t in batch)
-        X1, X2, S1, S2, Y, T, X1_MASK, X2_MASK, X1_SEG, X2_SEG, TT, TT2 = batch
-        pred_s1, pred_s2, x1_hs, x1_h = subject_model('x1', device,TT, X1, X1_SEG, X1_MASK)
-        x2_hs, x2_h = subject_model('x2', None,None,None, None, None, X2, X2_SEG, X2_MASK)
-        pred_o, x1_mask_, x2_mask_ = object_model(x1_hs, x1_h, X1_MASK, Y, x2_hs, x2_h, X2_MASK, TT, TT2)
-
-        s1_loss = b_loss_func(pred_s1, S1)  # [b,s]
-        s2_loss = b_loss_func(pred_s2, S2)
-
-        s1_loss.masked_fill_(x1_mask_, 0)
-        s2_loss.masked_fill_(x1_mask_, 0)
-
-        total_ele = X1.size(0) * X1.size(1) - torch.sum(x1_mask_)
-        s1_loss = torch.sum(s1_loss) / total_ele
-        s2_loss = torch.sum(s2_loss) / total_ele
-
-        po_loss = b2_loss_func(pred_o, T)
-
-        tmp_loss = (s1_loss + s2_loss) + po_loss
-
-        if n_gpu > 1:
-            tmp_loss = tmp_loss.mean()
-
-        tmp_loss.backward()
-
-        optimizer.step()
-        optimizer.zero_grad()
-
-        tr_total_loss += tmp_loss.item()
-        if batch_idx % 100 == 0:
-            logger.info(f'Epoch:{e} - batch:{batch_idx}/{train_D.steps} - loss: {tr_total_loss / batch_idx:.8f}')
+for e in range(1):
+    # subject_model.train()
+    # object_model.train()
+    # batch_idx = 0
+    # tr_total_loss = 0
+    # dev_total_loss = 0
+    #
+    # for batch in train_D:
+    #     batch_idx += 1
+    #     # if batch_idx > 1:
+    #     #     break
+    #
+    #     batch = tuple(t.to(device) for t in batch)
+    #     X1, X2, S1, S2, Y, T, X1_MASK, X2_MASK, X1_SEG, X2_SEG, TT, TT2 = batch
+    #     pred_s1, pred_s2, x1_hs, x1_h = subject_model('x1', device,TT, X1, X1_SEG, X1_MASK)
+    #     x2_hs, x2_h = subject_model('x2', None,None,None, None, None, X2, X2_SEG, X2_MASK)
+    #     pred_o, x1_mask_, x2_mask_ = object_model(x1_hs, x1_h, X1_MASK, Y, x2_hs, x2_h, X2_MASK, TT, TT2)
+    #
+    #     s1_loss = b_loss_func(pred_s1, S1)  # [b,s]
+    #     s2_loss = b_loss_func(pred_s2, S2)
+    #
+    #     s1_loss.masked_fill_(x1_mask_, 0)
+    #     s2_loss.masked_fill_(x1_mask_, 0)
+    #
+    #     total_ele = X1.size(0) * X1.size(1) - torch.sum(x1_mask_)
+    #     s1_loss = torch.sum(s1_loss) / total_ele
+    #     s2_loss = torch.sum(s2_loss) / total_ele
+    #
+    #     po_loss = b2_loss_func(pred_o, T)
+    #
+    #     tmp_loss = (s1_loss + s2_loss) + po_loss
+    #
+    #     if n_gpu > 1:
+    #         tmp_loss = tmp_loss.mean()
+    #
+    #     tmp_loss.backward()
+    #
+    #     optimizer.step()
+    #     optimizer.zero_grad()
+    #
+    #     tr_total_loss += tmp_loss.item()
+    #     if batch_idx % 100 == 0:
+    #         logger.info(f'Epoch:{e} - batch:{batch_idx}/{train_D.steps} - loss: {tr_total_loss / batch_idx:.8f}')
 
     subject_model.eval()
     object_model.eval()
@@ -414,19 +414,19 @@ for e in range(epoch_num):
             logger.info(f'eval_idx:{eval_idx} - precision:{A/B:.5f} - recall:{A/C:.5f} - f1:{2 * A / (B + C):.5f}')
 
     f1, precision, recall = 2 * A / (B + C), A / B, A / C
-    if f1 > best_score:
-        best_score = f1
-        best_epoch = e
-
-        json.dump(err_dict, (Path(data_dir) / 'err_log.json').open('w'), ensure_ascii=False)
-
-        s_model_to_save = subject_model.module if hasattr(subject_model, 'module') else subject_model
-        o_model_to_save = object_model.module if hasattr(object_model, 'module') else object_model
-
-        torch.save(s_model_to_save.state_dict(), data_dir + '/subject_model.pt')
-        torch.save(o_model_to_save.state_dict(), data_dir + '/object_model.pt')
-
-        (Path(data_dir) / 'subject_model_config.json').open('w').write(s_model_to_save.config.to_json_string())
+    # if f1 > best_score:
+    #     best_score = f1
+    #     best_epoch = e
+    #
+    #     json.dump(err_dict, (Path(data_dir) / 'err_log.json').open('w'), ensure_ascii=False)
+    #
+    #     s_model_to_save = subject_model.module if hasattr(subject_model, 'module') else subject_model
+    #     o_model_to_save = object_model.module if hasattr(object_model, 'module') else object_model
+    #
+    #     torch.save(s_model_to_save.state_dict(), data_dir + '/subject_model.pt')
+    #     torch.save(o_model_to_save.state_dict(), data_dir + '/object_model.pt')
+    #
+    #     (Path(data_dir) / 'subject_model_config.json').open('w').write(s_model_to_save.config.to_json_string())
 
     logger.info(
         f'Epoch:{e}-precision:{precision:.4f}-recall:{recall:.4f}-f1:{f1:.4f} - best f1: {best_score:.4f} - best epoch:{best_epoch}')
