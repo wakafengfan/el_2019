@@ -44,7 +44,7 @@ for l in (Path(data_dir) / 'kb_data').open():
         else:
             subject_desc += f'{i["predicate"]}:{i["object"]}\n'
 
-    subject_desc = subject_desc[:100].lower()
+    subject_desc = subject_desc[:200].lower()
     if subject_desc:
         id2kb[subject_id] = {'subject_alias': subject_alias, 'subject_desc': subject_desc}
 
@@ -301,7 +301,7 @@ def extract_items(text_in):
             _IDXS[_X1] = kb2id.get(_X1[0], [])
             # 每个subject只取10个链指
             for idx, i in enumerate(_IDXS[_X1]):
-                if idx > 9:
+                if idx > 15:
                     break
                 _x2 = id2kb[i]['subject_desc']
                 _x2_tokens = jieba.lcut(_x2)
