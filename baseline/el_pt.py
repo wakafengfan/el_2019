@@ -270,7 +270,7 @@ def extract_items(text_in):
     _X1_WV = torch.tensor(seq2vec([_x1_tokens]), dtype=torch.float32, device=device)
 
     with torch.no_grad():
-        _k1, _k2, _x1_hs, _x1_h = subject_model('x1',_X1_WV, _X1, _X1_SEG, _X1_MASK)  # _k1:[1,s]
+        _k1, _k2, _x1_hs, _x1_h = subject_model('x1',device,_X1_WV, _X1, _X1_SEG, _X1_MASK)  # _k1:[1,s]
         _k1 = _k1[0, :].detach().cpu().numpy()
         _k2 = _k2[0, :].detach().cpu().numpy()
         _k1, _k2 = np.where(_k1 > 0.5)[0], np.where(_k2 > 0.5)[0]
@@ -333,7 +333,7 @@ def extract_items(text_in):
                 batch = tuple(t.to(device) for t in batch)
                 _X2, _X2_SEG, _X2_MASK, _X1_HS, _X1_H, _X1_MASK, _Y, _X1_wv, _X2_wv = batch
                 with torch.no_grad():
-                    _x2, _x2_h = subject_model('x2', None, None, None, None, _X2, _X2_SEG, _X2_MASK)
+                    _x2, _x2_h = subject_model('x2',None, None, None, None, None, _X2, _X2_SEG, _X2_MASK)
                     _o, _, _ = object_model(_X1_HS, _X1_H, _X1_MASK, _Y, _x2, _x2_h, _X2_MASK, _X1_wv,
                                             _X2_wv)  # _o:[b,1]
                     _o = _o.detach().cpu().numpy()
@@ -365,8 +365,8 @@ for e in range(epoch_num):
 
         batch = tuple(t.to(device) for t in batch)
         X1, X2, S1, S2, Y, T, X1_MASK, X2_MASK, X1_SEG, X2_SEG, TT, TT2 = batch
-        pred_s1, pred_s2, x1_hs, x1_h = subject_model('x1', TT, X1, X1_SEG, X1_MASK)
-        x2_hs, x2_h = subject_model('x2', None,None, None, None, X2, X2_SEG, X2_MASK)
+        pred_s1, pred_s2, x1_hs, x1_h = subject_model('x1', TT,device, X1, X1_SEG, X1_MASK)
+        x2_hs, x2_h = subject_model('x2', None,None,None, None, None, X2, X2_SEG, X2_MASK)
         pred_o, x1_mask_, x2_mask_ = object_model(x1_hs, x1_h, X1_MASK, Y, x2_hs, x2_h, X2_MASK, TT, TT2)
 
         s1_loss = b_loss_func(pred_s1, S1)  # [b,s]

@@ -27,7 +27,7 @@ class SubjectModel(BertPreTrainedModel):
         self.linear2 = nn.Linear(in_features=hidden_size*4 + 200*5, out_features=1)
         self.apply(self.init_bert_weights)
 
-    def forward(self, flag, tt=None, x1_ids=None, x1_segments=None, x1_mask=None, x2_ids=None, x2_segments=None, x2_mask=None):
+    def forward(self, flag, device=None, tt=None, x1_ids=None, x1_segments=None, x1_mask=None, x2_ids=None, x2_segments=None, x2_mask=None):
         if flag == 'x1':
 
             # bert
@@ -35,14 +35,14 @@ class SubjectModel(BertPreTrainedModel):
 
             # bert + cnn
             b,_,h = x1_encoder_layers.size()
-            x1_bert_conv = [F.relu(bert_conv(torch.cat([x1_encoder_layers.permute(0, 2, 1), torch.zeros(b,h,k-1)], dim=-1))).permute(0,2,1)
-                            for bert_conv, k in zip(self.bert_convs, [2,3,4])]  # [(b,s,h),...,]
+            x1_bert_conv = [F.relu(bert_conv(torch.cat([x1_encoder_layers.permute(0, 2, 1), torch.zeros((b,h,k-1),device=device)], dim=-1))).permute(0,2,1)
+                            for k, bert_conv in enumerate(self.bert_convs, start=2)]  # [(b,s,h),...,]
             x1_bert_conv = torch.cat(x1_bert_conv, dim=-1)  # [b,s,h*3]
 
             # word2vec + cnn
             b,_,h = tt.size()
-            x1_wv_conv = [F.relu(wv_conv(torch.cat([tt.permute(0,2,1), torch.zeros(b,h,k-1)], dim=-1))).permute(0,2,1)
-                          for wv_conv, k in zip(self.word2vec_convs, [2,3,4])]  # [(b,s,200)]
+            x1_wv_conv = [F.relu(wv_conv(torch.cat([tt.permute(0,2,1), torch.zeros((b,h,k-1),device=device)], dim=-1))).permute(0,2,1)
+                          for k,wv_conv in enumerate(self.word2vec_convs, start=2)]  # [(b,s,200)]
             x1_wv_conv = torch.cat(x1_wv_conv, dim=-1)  #[b,s,200*3]
 
             # GRU
