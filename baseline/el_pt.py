@@ -16,7 +16,7 @@ from torch.utils.data import DataLoader, TensorDataset
 from tqdm import tqdm
 
 from baseline.match import match2
-from baseline.model_zoo3 import SubjectModel, ObjectModel
+from baseline.model_zoo2 import SubjectModel, ObjectModel
 from configuration.config import data_dir, bert_vocab_path, bert_model_path, bert_data_path
 
 min_count = 2
@@ -351,49 +351,49 @@ def extract_items(text_in):
 best_score = 0
 best_epoch = 0
 train_D = data_generator(train_data)
-for e in range(1):
-    # subject_model.train()
-    # object_model.train()
-    # batch_idx = 0
-    # tr_total_loss = 0
-    # dev_total_loss = 0
-    #
-    # for batch in train_D:
-    #     batch_idx += 1
-    #     # if batch_idx > 1:
-    #     #     break
-    #
-    #     batch = tuple(t.to(device) for t in batch)
-    #     X1, X2, S1, S2, Y, T, X1_MASK, X2_MASK, X1_SEG, X2_SEG, TT, TT2 = batch
-    #     pred_s1, pred_s2, x1_hs, x1_h = subject_model('x1', device,TT, X1, X1_SEG, X1_MASK)
-    #     x2_hs, x2_h = subject_model('x2', None,None,None, None, None, X2, X2_SEG, X2_MASK)
-    #     pred_o, x1_mask_, x2_mask_ = object_model(x1_hs, x1_h, X1_MASK, Y, x2_hs, x2_h, X2_MASK, TT, TT2)
-    #
-    #     s1_loss = b_loss_func(pred_s1, S1)  # [b,s]
-    #     s2_loss = b_loss_func(pred_s2, S2)
-    #
-    #     s1_loss.masked_fill_(x1_mask_, 0)
-    #     s2_loss.masked_fill_(x1_mask_, 0)
-    #
-    #     total_ele = X1.size(0) * X1.size(1) - torch.sum(x1_mask_)
-    #     s1_loss = torch.sum(s1_loss) / total_ele
-    #     s2_loss = torch.sum(s2_loss) / total_ele
-    #
-    #     po_loss = b2_loss_func(pred_o, T)
-    #
-    #     tmp_loss = (s1_loss + s2_loss) + po_loss
-    #
-    #     if n_gpu > 1:
-    #         tmp_loss = tmp_loss.mean()
-    #
-    #     tmp_loss.backward()
-    #
-    #     optimizer.step()
-    #     optimizer.zero_grad()
-    #
-    #     tr_total_loss += tmp_loss.item()
-    #     if batch_idx % 100 == 0:
-    #         logger.info(f'Epoch:{e} - batch:{batch_idx}/{train_D.steps} - loss: {tr_total_loss / batch_idx:.8f}')
+for e in range(epoch_num):
+    subject_model.train()
+    object_model.train()
+    batch_idx = 0
+    tr_total_loss = 0
+    dev_total_loss = 0
+
+    for batch in train_D:
+        batch_idx += 1
+        # if batch_idx > 1:
+        #     break
+
+        batch = tuple(t.to(device) for t in batch)
+        X1, X2, S1, S2, Y, T, X1_MASK, X2_MASK, X1_SEG, X2_SEG, TT, TT2 = batch
+        pred_s1, pred_s2, x1_hs, x1_h = subject_model('x1', device,TT, X1, X1_SEG, X1_MASK)
+        x2_hs, x2_h = subject_model('x2', None,None,None, None, None, X2, X2_SEG, X2_MASK)
+        pred_o, x1_mask_, x2_mask_ = object_model(x1_hs, x1_h, X1_MASK, Y, x2_hs, x2_h, X2_MASK, TT, TT2)
+
+        s1_loss = b_loss_func(pred_s1, S1)  # [b,s]
+        s2_loss = b_loss_func(pred_s2, S2)
+
+        s1_loss.masked_fill_(x1_mask_, 0)
+        s2_loss.masked_fill_(x1_mask_, 0)
+
+        total_ele = X1.size(0) * X1.size(1) - torch.sum(x1_mask_)
+        s1_loss = torch.sum(s1_loss) / total_ele
+        s2_loss = torch.sum(s2_loss) / total_ele
+
+        po_loss = b2_loss_func(pred_o, T)
+
+        tmp_loss = (s1_loss + s2_loss) + po_loss
+
+        if n_gpu > 1:
+            tmp_loss = tmp_loss.mean()
+
+        tmp_loss.backward()
+
+        optimizer.step()
+        optimizer.zero_grad()
+
+        tr_total_loss += tmp_loss.item()
+        if batch_idx % 100 == 0:
+            logger.info(f'Epoch:{e} - batch:{batch_idx}/{train_D.steps} - loss: {tr_total_loss / batch_idx:.8f}')
 
     subject_model.eval()
     object_model.eval()
@@ -414,19 +414,19 @@ for e in range(1):
             logger.info(f'eval_idx:{eval_idx} - precision:{A/B:.5f} - recall:{A/C:.5f} - f1:{2 * A / (B + C):.5f}')
 
     f1, precision, recall = 2 * A / (B + C), A / B, A / C
-    # if f1 > best_score:
-    #     best_score = f1
-    #     best_epoch = e
-    #
-    #     json.dump(err_dict, (Path(data_dir) / 'err_log.json').open('w'), ensure_ascii=False)
-    #
-    #     s_model_to_save = subject_model.module if hasattr(subject_model, 'module') else subject_model
-    #     o_model_to_save = object_model.module if hasattr(object_model, 'module') else object_model
-    #
-    #     torch.save(s_model_to_save.state_dict(), data_dir + '/subject_model.pt')
-    #     torch.save(o_model_to_save.state_dict(), data_dir + '/object_model.pt')
-    #
-    #     (Path(data_dir) / 'subject_model_config.json').open('w').write(s_model_to_save.config.to_json_string())
+    if f1 > best_score:
+        best_score = f1
+        best_epoch = e
+
+        json.dump(err_dict, (Path(data_dir) / 'err_log.json').open('w'), ensure_ascii=False)
+
+        s_model_to_save = subject_model.module if hasattr(subject_model, 'module') else subject_model
+        o_model_to_save = object_model.module if hasattr(object_model, 'module') else object_model
+
+        torch.save(s_model_to_save.state_dict(), data_dir + '/subject_model.pt')
+        torch.save(o_model_to_save.state_dict(), data_dir + '/object_model.pt')
+
+        (Path(data_dir) / 'subject_model_config.json').open('w').write(s_model_to_save.config.to_json_string())
 
     logger.info(
         f'Epoch:{e}-precision:{precision:.4f}-recall:{recall:.4f}-f1:{f1:.4f} - best f1: {best_score:.4f} - best epoch:{best_epoch}')
