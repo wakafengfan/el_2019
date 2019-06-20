@@ -399,7 +399,7 @@ for e in range(epoch_num):
     object_model.eval()
     A, B, C = 1e-10, 1e-10, 1e-10
     err_dict = defaultdict(list)
-    for d in tqdm(iter(dev_data)):
+    for eval_idx, d in tqdm(enumerate(dev_data)):
         R = set(map(lambda x: (str(x[0]), str(x[1]), str(x[2])), set(extract_items(d['text']))))
         T = set(map(lambda x: (str(x[0]), str(x[1]), str(x[2])), set(d['mention_data'])))
         A += len(R & T)
@@ -410,6 +410,8 @@ for e in range(epoch_num):
             err_dict['err'].append({'text': d['text'],
                                     'mention_data': list(T),
                                     'predict': list(R)})
+        if eval_idx % 100 == 0:
+            logger.info(f'eval_idx:{eval_idx} - precision:{A/B:.5f} - recall:{A/C:.5f} - f1:{2 * A / (B + C):.5f}')
 
     f1, precision, recall = 2 * A / (B + C), A / B, A / C
     if f1 > best_score:
