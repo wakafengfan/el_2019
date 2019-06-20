@@ -365,7 +365,7 @@ for e in range(epoch_num):
 
         batch = tuple(t.to(device) for t in batch)
         X1, X2, S1, S2, Y, T, X1_MASK, X2_MASK, X1_SEG, X2_SEG, TT, TT2 = batch
-        pred_s1, pred_s2, x1_hs, x1_h = subject_model('x1', TT,device, X1, X1_SEG, X1_MASK)
+        pred_s1, pred_s2, x1_hs, x1_h = subject_model('x1', device,TT, X1, X1_SEG, X1_MASK)
         x2_hs, x2_h = subject_model('x2', None,None,None, None, None, X2, X2_SEG, X2_MASK)
         pred_o, x1_mask_, x2_mask_ = object_model(x1_hs, x1_h, X1_MASK, Y, x2_hs, x2_h, X2_MASK, TT, TT2)
 
