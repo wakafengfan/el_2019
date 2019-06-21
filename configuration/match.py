@@ -13,7 +13,7 @@ from configuration.config import data_dir, expire_list
 # load kb_data, get all entity,build ac
 # kb_ac = ahocorasick.Automaton()
 #
-# for l in (Path(data_dir)/'kb_data').open():
+# for l in tqdm((Path(data_dir)/'kb_data').open()):
 #     _ = json.loads(l)
 #     subject_id = _['subject_id']
 #     subject_alias = list(set([_['subject']] + _.get('alias', [])))
@@ -28,7 +28,7 @@ kb_ac = pickle.load((Path(data_dir) / 'kb_ac.pkl').open('rb'))
 
 def match_rules(w):
     # 长度大于1个字
-    if len(w) < 2:
+    if len(w) < 3:
         return False
     # 数字或英文
     if re.match(r'^\d+$', w) or re.match(r'^[a-zA-Z\s]+$', w):

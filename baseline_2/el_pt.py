@@ -16,7 +16,7 @@ from torch.utils.data import DataLoader, TensorDataset
 from tqdm import tqdm
 
 from configuration.match import match2
-from baseline.model_zoo import SubjectModel, ObjectModel
+from baseline.model_zoo2 import SubjectModel, ObjectModel
 from configuration.config import data_dir, bert_vocab_path, bert_model_path, bert_data_path
 
 min_count = 2
