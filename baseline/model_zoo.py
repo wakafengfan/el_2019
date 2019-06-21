@@ -39,7 +39,7 @@ class ObjectModel(nn.Module):
         # self.W_wv = nn.Parameter(W_wv)
 
 
-        self.linear = nn.Linear(in_features=hidden_size * 4, out_features=1)
+        self.linear = nn.Linear(in_features=hidden_size * 3, out_features=1)
 
     def forward(self, x1, x1_h, x1_mask, y, x2, x2_h, x2_mask,tt,tt2):
         x1_mask = 1 - x1_mask.byte()
