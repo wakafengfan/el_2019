@@ -363,8 +363,8 @@ for e in range(epoch_num):
 
     for batch in train_D:
         batch_idx += 1
-        if batch_idx > 1:
-            break
+        # if batch_idx > 1:
+        #     break
 
         batch = tuple(t.to(device) for t in batch)
         X1, X2, S1, S2, Y, T, X1_MASK, X2_MASK, X1_SEG, X2_SEG, TT, TT2 = batch
@@ -402,7 +402,7 @@ for e in range(epoch_num):
     object_model.eval()
     A, B, C = 1e-10, 1e-10, 1e-10
     err_dict = defaultdict(list)
-    for eval_idx, d in tqdm(enumerate(dev_data)):
+    for eval_idx, d in tqdm(enumerate(dev_data[:5000])):
 
         R = set(map(lambda x: (str(x[0]), str(x[1]), str(x[2])), set(extract_items(d['text']))))
         T = set(map(lambda x: (str(x[0]), str(x[1]), str(x[2])), set(d['mention_data'])))
