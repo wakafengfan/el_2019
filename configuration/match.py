@@ -63,10 +63,11 @@ def match2(text):
         while j <= len(text):
             w = text[i:j]
             # if all(w not in rr for rr in r_) and kb_ac.exists(w) and len(w) > len(word):
-            if kb_ac.exists(w) and len(w) > len(word) and w not in ['《']:
+            if kb_ac.exists(w) and len(w) > len(word) and w !='《':
                 word = w
             j += 1
         if match_rules(word):
+        # if word != '':
             words.append((i, word))
             i += len(word)
         else:

@@ -46,7 +46,6 @@ def freq():
         labeled_words = [(m['mention'],m['offset']) for m in l['mention_data'] if m['kb_id']!='NIL']
         if not set(exp_words).issuperset(set(labeled_words)):
             cnt+= 1
-            print(l)
 
     #     for w, start_idx in exp_words:
     #         if 'exp' not in freq_dic[w]:
@@ -61,7 +60,7 @@ def freq():
     #
     #
     # print(f'cnt: {cnt}')
-
+    #
     # for w in freq_dic:
     #     if 'labeled' not in freq_dic[w]:
     #         freq_dic[w]['labeled'] = 0
@@ -69,7 +68,7 @@ def freq():
     # a = [(w, freq_dic[w]['per']) for w in freq_dic]
     # a = sorted(a, key=lambda x: x[1], reverse=True)
     #
-    # p = (Path(data_dir)/'el_freq_dic.json').open('w')
+    # p = (Path(data_dir)/'el_freq_dic_1.json').open('w')
     # for w in freq_dic:
     #     doc = freq_dic[w]
     #     doc.update({'word': w})

@@ -44,7 +44,7 @@ for l in (Path(data_dir) / 'kb_data').open():
         else:
             subject_desc += f'{i["predicate"]}:{i["object"]}' + ' '
 
-    subject_desc = ' '.join(subject_alias) + ' ' + subject_desc[:100].lower()
+    subject_desc = ' '.join(subject_alias)[:50] + ' ' + subject_desc[:100].lower()
     if subject_desc:
         id2kb[subject_id] = {'subject_alias': subject_alias, 'subject_desc': subject_desc}
 
