@@ -226,7 +226,7 @@ def extract_items(text_in):
     _X1_SEG = torch.zeros(*_X1.size(), dtype=torch.long, device=device)
 
     with torch.no_grad():
-        _k1, _k2, _x1_hs, _x1_h = subject_model(device, _X1, _X1_SEG, _X1_MASK)  # _k1:[1,s]
+        _k1, _k2, _ = subject_model(device, _X1, _X1_SEG, _X1_MASK)  # _k1:[1,s]
         _k1 = _k1[0, :].detach().cpu().numpy()
         _k2 = _k2[0, :].detach().cpu().numpy()
         _k1, _k2 = np.where(_k1 > 0.3)[0], np.where(_k2 > 0.5)[0]
@@ -238,7 +238,8 @@ def extract_items(text_in):
             if len(j) > 0:
                 j = j[0]
                 _subject = text_in[i:j + 1]
-                _subjects.append((_subject, str(i), str(j + 1)))
+                if _subject in kb2id:
+                    _subjects.append((_subject, str(i), str(j + 1)))
 
     # subject补余
     for _s in match2(text_in):
@@ -258,8 +259,8 @@ for e in range(epoch_num):
 
     for batch in train_D:
         batch_idx += 1
-        # if batch_idx > 1:
-        #     break
+        if batch_idx > 1:
+            break
 
         batch = tuple(t.to(device) for t in batch)
         X1, S1, S2, Y, X1_MASK, X1_SEG = batch
