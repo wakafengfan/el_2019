@@ -216,11 +216,11 @@ if pretrain:
     config = BertConfig(str(Path(data_dir) / 'subject_model_config.json'))
     subject_model = SubjectModel(config)
     subject_model.load_state_dict(
-        torch.load(Path(data_dir) / 'subject_model.pt', map_location='cpu' if not torch.cuda.is_available() else None))
+        torch.load(Path(data_dir) / 'model_1_retrain/subject_model.pt', map_location='cpu' if not torch.cuda.is_available() else None))
 
     object_model = ObjectModel()
     object_model.load_state_dict(
-        torch.load(Path(data_dir) / 'object_model.pt', map_location='cpu' if not torch.cuda.is_available() else None))
+        torch.load(Path(data_dir) / 'model_1_retrain/object_model.pt', map_location='cpu' if not torch.cuda.is_available() else None))
 else:
     subject_model = SubjectModel.from_pretrained(pretrained_model_name_or_path=bert_model_path, cache_dir=bert_data_path)
     object_model = ObjectModel()
@@ -282,7 +282,8 @@ def extract_items(text_in):
             if len(j) > 0:
                 j = j[0]
                 _subject = text_in[i:j + 1]
-                _subjects.append((_subject, str(i), str(j + 1)))
+                if _subject in kb2id:
+                    _subjects.append((_subject, str(i), str(j + 1)))
 
     # subject补余
     for _s in match2(text_in):
@@ -290,65 +291,65 @@ def extract_items(text_in):
             if freq[_s[0]]['per'] > 0.8:
                 _subjects.append(_s)
 
-    _subjects = list(set(_subjects))
+    return list(set(_subjects))
 
-    if _subjects:
-        R = []
-        _X2, _X2_MASK, _Y, _X2_wv = [], [], [], []
-        _S, _IDXS = [], {}
-        for _X1 in _subjects:
-            if _X1[0] in ['的']:
-                continue
-            _y = np.zeros(len(text_in))
-            _y[int(_X1[1]):int(_X1[2])] = 1
-            _IDXS[_X1] = kb2id.get(_X1[0], [])
-            # 每个subject只取10个链指
-            for idx, i in enumerate(_IDXS[_X1]):
-                if idx > 15:
-                    break
-                _x2 = id2kb[i]['subject_desc']
-                _x2_tokens = jieba.lcut(_x2)
-                _x2 = ''.join(_x2_tokens)
-                _x2 = [bert_vocab.get(c, bert_vocab.get('[UNK]')) for c in _x2]
-                _x2_mask = [1] * len(_x2)
-
-                _X2.append(_x2)
-                _X2_MASK.append(_x2_mask)
-                _Y.append(_y)
-                _S.append(_X1)
-                _X2_wv.append(_x2_tokens)
-        if _X2:
-            _O = []
-            _X2 = torch.tensor(seq_padding(_X2), dtype=torch.long)  # [b,s2]
-            _X2_MASK = torch.tensor(seq_padding(_X2_MASK), dtype=torch.long)
-            _X2_SEG = torch.zeros(*_X2.size(), dtype=torch.long)
-            _Y = torch.tensor(seq_padding(_Y), dtype=torch.float32)
-            _X1_HS = _x1_hs.expand(_X2.size(0), -1, -1)  # [b,s1,h]
-            _X1_H = _x1_h.expand(_X2.size(0), -1)  # [b,s1]
-            _X1_MASK = _X1_MASK.expand(_X2.size(0), -1)  # [b,s1]
-            _X1_wv = _X1_WV.expand(_X2.size(0),-1,-1) # [b,s1,200]
-            _X2_wv = torch.tensor(seq2vec(_X2_wv), dtype=torch.float32)
-
-            eval_dataloader = DataLoader(
-                TensorDataset(_X2, _X2_SEG, _X2_MASK, _X1_HS, _X1_H, _X1_MASK, _Y, _X1_wv, _X2_wv), batch_size=64)
-
-            for batch_idx, batch in enumerate(eval_dataloader):
-                batch = tuple(t.to(device) for t in batch)
-                _X2, _X2_SEG, _X2_MASK, _X1_HS, _X1_H, _X1_MASK, _Y, _X1_wv, _X2_wv = batch
-                with torch.no_grad():
-                    _x2, _x2_h = subject_model('x2',None, None, None, None, None, _X2, _X2_SEG, _X2_MASK)
-                    _o, _, _ = object_model(_X1_HS, _X1_H, _X1_MASK, _Y, _x2, _x2_h, _X2_MASK, _X1_wv,
-                                            _X2_wv)  # _o:[b,1]
-                    _o = _o.detach().cpu().numpy()
-                    _O.extend(_o)
-
-            for k, v in groupby(zip(_S, _O), key=lambda x: x[0]):
-                v = np.array([j[1] for j in v])
-                kbid = _IDXS[k][np.argmax(v)]
-                R.append((k[0], k[1], kbid))
-        return list(set(R))
-    else:
-        return []
+    # if _subjects:
+    #     R = []
+    #     _X2, _X2_MASK, _Y, _X2_wv = [], [], [], []
+    #     _S, _IDXS = [], {}
+    #     for _X1 in _subjects:
+    #         if _X1[0] in ['的']:
+    #             continue
+    #         _y = np.zeros(len(text_in))
+    #         _y[int(_X1[1]):int(_X1[2])] = 1
+    #         _IDXS[_X1] = kb2id.get(_X1[0], [])
+    #         # 每个subject只取10个链指
+    #         for idx, i in enumerate(_IDXS[_X1]):
+    #             if idx > 15:
+    #                 break
+    #             _x2 = id2kb[i]['subject_desc']
+    #             _x2_tokens = jieba.lcut(_x2)
+    #             _x2 = ''.join(_x2_tokens)
+    #             _x2 = [bert_vocab.get(c, bert_vocab.get('[UNK]')) for c in _x2]
+    #             _x2_mask = [1] * len(_x2)
+    #
+    #             _X2.append(_x2)
+    #             _X2_MASK.append(_x2_mask)
+    #             _Y.append(_y)
+    #             _S.append(_X1)
+    #             _X2_wv.append(_x2_tokens)
+    #     if _X2:
+    #         _O = []
+    #         _X2 = torch.tensor(seq_padding(_X2), dtype=torch.long)  # [b,s2]
+    #         _X2_MASK = torch.tensor(seq_padding(_X2_MASK), dtype=torch.long)
+    #         _X2_SEG = torch.zeros(*_X2.size(), dtype=torch.long)
+    #         _Y = torch.tensor(seq_padding(_Y), dtype=torch.float32)
+    #         _X1_HS = _x1_hs.expand(_X2.size(0), -1, -1)  # [b,s1,h]
+    #         _X1_H = _x1_h.expand(_X2.size(0), -1)  # [b,s1]
+    #         _X1_MASK = _X1_MASK.expand(_X2.size(0), -1)  # [b,s1]
+    #         _X1_wv = _X1_WV.expand(_X2.size(0),-1,-1) # [b,s1,200]
+    #         _X2_wv = torch.tensor(seq2vec(_X2_wv), dtype=torch.float32)
+    #
+    #         eval_dataloader = DataLoader(
+    #             TensorDataset(_X2, _X2_SEG, _X2_MASK, _X1_HS, _X1_H, _X1_MASK, _Y, _X1_wv, _X2_wv), batch_size=64)
+    #
+    #         for batch_idx, batch in enumerate(eval_dataloader):
+    #             batch = tuple(t.to(device) for t in batch)
+    #             _X2, _X2_SEG, _X2_MASK, _X1_HS, _X1_H, _X1_MASK, _Y, _X1_wv, _X2_wv = batch
+    #             with torch.no_grad():
+    #                 _x2, _x2_h = subject_model('x2',None, None, None, None, None, _X2, _X2_SEG, _X2_MASK)
+    #                 _o, _, _ = object_model(_X1_HS, _X1_H, _X1_MASK, _Y, _x2, _x2_h, _X2_MASK, _X1_wv,
+    #                                         _X2_wv)  # _o:[b,1]
+    #                 _o = _o.detach().cpu().numpy()
+    #                 _O.extend(_o)
+    #
+    #         for k, v in groupby(zip(_S, _O), key=lambda x: x[0]):
+    #             v = np.array([j[1] for j in v])
+    #             kbid = _IDXS[k][np.argmax(v)]
+    #             R.append((k[0], k[1], kbid))
+    #     return list(set(R))
+    # else:
+    #     return []
 
 
 best_score = 0
@@ -404,8 +405,8 @@ for e in range(1):
     err_dict = defaultdict(list)
     for eval_idx, d in tqdm(enumerate(dev_data)):
 
-        R = set(map(lambda x: (str(x[0]), str(x[1]), str(x[2])), set(extract_items(d['text']))))
-        T = set(map(lambda x: (str(x[0]), str(x[1]), str(x[2])), set(d['mention_data'])))
+        R = set(map(lambda x: (str(x[0]), str(x[1])), set(extract_items(d['text']))))
+        T = set(map(lambda x: (str(x[0]), str(x[1])), set(d['mention_data'])))
         A += len(R & T)
         B += len(R)
         C += len(T)

@@ -135,9 +135,7 @@ class data_generator:
         X1, X2, S1, S2, Y, T, X1_MASK, X2_MASK, TT, TT2 = [], [], [], [], [], [], [], [], [], []
         for i in idxs:
             d = self.data[i]
-            text_tokens = d['text_words']
             text = d['text']
-            assert len(text) == len(''.join(text_tokens))
 
             x1 = [bert_vocab.get(c, bert_vocab.get('[UNK]')) for c in text]
             x1_mask = [1] * len(x1)
