@@ -63,11 +63,11 @@ def match2(text):
         while j <= len(text):
             w = text[i:j]
             # if all(w not in rr for rr in r_) and kb_ac.exists(w) and len(w) > len(word):
-            if kb_ac.exists(w) and len(w) > len(word) and w !='《':
+            if kb_ac.exists(w) and len(w) > len(word) and w != '《':
                 word = w
             j += 1
         if match_rules(word):
-        # if word != '':
+            # if word != '':
             words.append((i, word))
             i += len(word)
         else:
@@ -82,7 +82,7 @@ def match2(text):
 
 def tst_recall():
     train_data = (Path(data_dir) / 'train.json').open()
-    exact, R,A, B = 0, 0, 0,0
+    exact, R, A, B = 0, 0, 0, 0
 
     for l in tqdm(train_data):
         l = json.loads(l)
@@ -97,7 +97,6 @@ def tst_recall():
         R += len(m & rs)
         A += len(rs)
         B += len(m)
-
 
     print(f'total exact:{exact / 90000}')
     print(f'precision rate: {R / A}')
