@@ -273,7 +273,7 @@ def extract_items(text_in):
         _k1, _k2, _x1_hs, _x1_h = subject_model('x1',device,_X1_WV, _X1, _X1_SEG, _X1_MASK)  # _k1:[1,s]
         _k1 = _k1[0, :].detach().cpu().numpy()
         _k2 = _k2[0, :].detach().cpu().numpy()
-        _k1, _k2 = np.where(_k1 > 0.5)[0], np.where(_k2 > 0.5)[0]
+        _k1, _k2 = np.where(_k1 > 0.3)[0], np.where(_k2 > 0.5)[0]
 
     _subjects = []
     if len(_k1) and len(_k2):
@@ -285,8 +285,8 @@ def extract_items(text_in):
                 _subjects.append((_subject, str(i), str(j + 1)))
 
     # subject补余
-    for sup in match2(text_in):
-        _subjects.append(sup)
+    # for sup in match2(text_in):
+    #     _subjects.append(sup)
     _subjects = list(set(_subjects))
 
     if _subjects:
@@ -411,7 +411,7 @@ for e in range(epoch_num):
             err_dict['err'].append({'text': d['text'],
                                     'mention_data': list(T),
                                     'predict': list(R)})
-        if eval_idx % 1000 == 0:
+        if eval_idx % 100 == 0:
             logger.info(f'eval_idx:{eval_idx} - precision:{A/B:.5f} - recall:{A/C:.5f} - f1:{2 * A / (B + C):.5f}')
 
     f1, precision, recall = 2 * A / (B + C), A / B, A / C

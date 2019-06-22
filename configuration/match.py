@@ -28,7 +28,7 @@ kb_ac = pickle.load((Path(data_dir) / 'kb_ac.pkl').open('rb'))
 
 def match_rules(w):
     # 长度大于1个字
-    if len(w) < 3:
+    if len(w) < 2:
         return False
     # 数字或英文
     if re.match(r'^\d+$', w) or re.match(r'^[a-zA-Z\s]+$', w):
