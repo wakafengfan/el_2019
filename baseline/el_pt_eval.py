@@ -271,22 +271,22 @@ def extract_items(text_in):
 
     with torch.no_grad():
         _k1, _k2, _x1_hs, _x1_h = subject_model('x1',device,_X1_WV, _X1, _X1_SEG, _X1_MASK)  # _k1:[1,s]
-    #     _k1 = _k1[0, :].detach().cpu().numpy()
-    #     _k2 = _k2[0, :].detach().cpu().numpy()
-    #     _k1, _k2 = np.where(_k1 > 0.3)[0], np.where(_k2 > 0.5)[0]
+        _k1 = _k1[0, :].detach().cpu().numpy()
+        _k2 = _k2[0, :].detach().cpu().numpy()
+        _k1, _k2 = np.where(_k1 > 0.3)[0], np.where(_k2 > 0.5)[0]
 
     _subjects = []
-    # if len(_k1) and len(_k2):
-    #     for i in _k1:
-    #         j = _k2[_k2 >= i]
-    #         if len(j) > 0:
-    #             j = j[0]
-    #             _subject = text_in[i:j + 1]
-    #             _subjects.append((_subject, str(i), str(j + 1)))
+    if len(_k1) and len(_k2):
+        for i in _k1:
+            j = _k2[_k2 >= i]
+            if len(j) > 0:
+                j = j[0]
+                _subject = text_in[i:j + 1]
+                _subjects.append((_subject, str(i), str(j + 1)))
 
     # subject补余
-    for sup in match2(text_in):
-        _subjects.append(sup)
+    # for sup in match2(text_in):
+    #     _subjects.append(sup)
 
     # subject归一
     _subjects = list(set(_subjects))
