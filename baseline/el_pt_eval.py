@@ -417,7 +417,7 @@ for e in range(1):
             err_dict['err'].append({'text': d['text'],
                                     'mention_data': list(T),
                                     'predict': list(R)})
-        if eval_idx % 200 == 0:
+        if eval_idx % 100 == 0:
             logger.info(f'eval_idx:{eval_idx} - precision:{A/B:.5f} - recall:{A/C:.5f} - f1:{2 * A / (B + C):.5f}')
 
     f1, precision, recall = 2 * A / (B + C), A / B, A / C
