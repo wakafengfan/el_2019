@@ -44,36 +44,37 @@ def freq():
         t = l['text']
         exp_words = [(k,sidx) for k,sidx,_ in match2(t)]
         labeled_words = [(m['mention'],m['offset']) for m in l['mention_data'] if m['kb_id']!='NIL']
-        if set(exp_words).issuperset(set(labeled_words)):
+        if not set(exp_words).issuperset(set(labeled_words)):
             cnt+= 1
+            print(l)
 
-        for w, start_idx in exp_words:
-            if 'exp' not in freq_dic[w]:
-                freq_dic[w]['exp'] = 1
-            else:
-                freq_dic[w]['exp'] += 1
-            if (w,start_idx) in labeled_words:
-                if 'labeled' not in freq_dic[w]:
-                    freq_dic[w]['labeled'] = 1
-                else:
-                    freq_dic[w]['labeled'] += 1
+    #     for w, start_idx in exp_words:
+    #         if 'exp' not in freq_dic[w]:
+    #             freq_dic[w]['exp'] = 1
+    #         else:
+    #             freq_dic[w]['exp'] += 1
+    #         if (w,start_idx) in labeled_words:
+    #             if 'labeled' not in freq_dic[w]:
+    #                 freq_dic[w]['labeled'] = 1
+    #             else:
+    #                 freq_dic[w]['labeled'] += 1
+    #
+    #
+    # print(f'cnt: {cnt}')
 
-
-    print(f'cnt: {cnt}')
-
-    for w in freq_dic:
-        if 'labeled' not in freq_dic[w]:
-            freq_dic[w]['labeled'] = 0
-        freq_dic[w]['per'] = freq_dic[w]['labeled']/freq_dic[w]['exp']
-    a = [(w, freq_dic[w]['per']) for w in freq_dic]
-    a = sorted(a, key=lambda x: x[1], reverse=True)
-
-    p = (Path(data_dir)/'el_freq_dic.json').open('w')
-    for w in freq_dic:
-        doc = freq_dic[w]
-        doc.update({'word': w})
-        s = json.dumps(doc, ensure_ascii=False)
-        p.write(s + '\n')
+    # for w in freq_dic:
+    #     if 'labeled' not in freq_dic[w]:
+    #         freq_dic[w]['labeled'] = 0
+    #     freq_dic[w]['per'] = freq_dic[w]['labeled']/freq_dic[w]['exp']
+    # a = [(w, freq_dic[w]['per']) for w in freq_dic]
+    # a = sorted(a, key=lambda x: x[1], reverse=True)
+    #
+    # p = (Path(data_dir)/'el_freq_dic.json').open('w')
+    # for w in freq_dic:
+    #     doc = freq_dic[w]
+    #     doc.update({'word': w})
+    #     s = json.dumps(doc, ensure_ascii=False)
+    #     p.write(s + '\n')
 
 if __name__ == '__main__':
     freq()

@@ -16,7 +16,7 @@ from torch.utils.data import DataLoader, TensorDataset
 from tqdm import tqdm
 
 from configuration.match import match2
-from baseline.model_zoo2 import SubjectModel, ObjectModel
+from baseline_2.model_zoo import SubjectModel, ObjectModel
 from configuration.config import data_dir, bert_vocab_path, bert_model_path, bert_data_path
 
 min_count = 2
@@ -42,9 +42,9 @@ for l in (Path(data_dir) / 'kb_data').open():
             subject_desc = i['object']
             break
         else:
-            subject_desc += f'{i["predicate"]}:{i["object"]}\n'
+            subject_desc += f'{i["predicate"]}:{i["object"]}' + ' '
 
-    subject_desc = subject_desc[:200].lower()
+    subject_desc = ' '.join(subject_alias) + ' ' + subject_desc[:100].lower()
     if subject_desc:
         id2kb[subject_id] = {'subject_alias': subject_alias, 'subject_desc': subject_desc}
 
@@ -57,25 +57,25 @@ train_data = []
 for l in tqdm(json.load((Path(data_dir) / 'train_data_me.json').open())):
     train_data.append({
         'text': l['text'].lower(),
-        'mention_data': [(x['mention'], int(x['offset']), x['kb_id'])
+        'mention_data': [(x['mention'].lower(), int(x['offset']), x['kb_id'])
                          for x in l['mention_data'] if x['kb_id'] != 'NIL'],
         'text_words': list(map(lambda x: x.lower(), l['text_words']))
     })
 
-if not (Path(data_dir) / 'all_chars_me.json').exists():
-    chars = {}
-    for d in tqdm(iter(id2kb.values())):
-        for c in d['subject_desc']:
-            chars[c] = chars.get(c, 0) + 1
-    for d in tqdm(iter(train_data)):
-        for c in d['text']:
-            chars[c] = chars.get(c, 0) + 1
-    chars = {i: j for i, j in chars.items() if j >= min_count}
-    id2char = {i + 2: j for i, j in enumerate(chars)}
-    char2id = {j: i for i, j in id2char.items()}
-    json.dump([id2char, char2id], (Path(data_dir) / 'all_chars_me.json').open('w'))
-else:
-    id2char, char2id = json.load((Path(data_dir) / 'all_chars_me.json').open())
+# if not (Path(data_dir) / 'all_chars_me.json').exists():
+#     chars = {}
+#     for d in tqdm(iter(id2kb.values())):
+#         for c in d['subject_desc']:
+#             chars[c] = chars.get(c, 0) + 1
+#     for d in tqdm(iter(train_data)):
+#         for c in d['text']:
+#             chars[c] = chars.get(c, 0) + 1
+#     chars = {i: j for i, j in chars.items() if j >= min_count}
+#     id2char = {i + 2: j for i, j in enumerate(chars)}
+#     char2id = {j: i for i, j in id2char.items()}
+#     json.dump([id2char, char2id], (Path(data_dir) / 'all_chars_me.json').open('w'))
+# else:
+#     id2char, char2id = json.load((Path(data_dir) / 'all_chars_me.json').open())
 
 if not (Path(data_dir) / 'random_order_train.json').exists():
     random_order = list(range(len(train_data)))
@@ -211,7 +211,7 @@ class data_generator:
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 n_gpu = torch.cuda.device_count()
 
-pretrain = True
+pretrain = False
 if pretrain:
     config = BertConfig(str(Path(data_dir) / 'subject_model_config.json'))
     subject_model = SubjectModel(config)
@@ -256,6 +256,7 @@ optimizer = BertAdam(optimizer_grouped_parameters,
                      warmup=warmup_proportion,
                      t_total=num_train_optimization_steps)
 
+freq = json.load((Path(data_dir)/'freq_dic.json').open())
 
 def extract_items(text_in):
     _x1_tokens = jieba.lcut(text_in)
@@ -285,8 +286,10 @@ def extract_items(text_in):
                 _subjects.append((_subject, str(i), str(j + 1)))
 
     # subject补余
-    # for sup in match2(text_in):
-    #     _subjects.append(sup)
+    for _s in match2(text_in):
+        if _s[0] in freq:
+            if freq[_s[0]]['per'] > 0.8:
+                _subjects.append(_s)
     _subjects = list(set(_subjects))
 
     if _subjects:
@@ -360,8 +363,8 @@ for e in range(epoch_num):
 
     for batch in train_D:
         batch_idx += 1
-        # if batch_idx > 1:
-        #     break
+        if batch_idx > 1:
+            break
 
         batch = tuple(t.to(device) for t in batch)
         X1, X2, S1, S2, Y, T, X1_MASK, X2_MASK, X1_SEG, X2_SEG, TT, TT2 = batch

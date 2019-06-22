@@ -291,11 +291,6 @@ def extract_items(text_in):
                 _subjects.append(_s)
 
     _subjects = list(set(_subjects))
-    # # subject归一
-    # for _s in _subjects:
-    #     if _s[0] in freq:
-    #         if freq[_s[0]]['per'] < 0.8:
-    #             _subjects.remove(_s)
 
     if _subjects:
         R = []
