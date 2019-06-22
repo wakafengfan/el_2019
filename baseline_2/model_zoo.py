@@ -12,10 +12,10 @@ class SubjectModel(BertPreTrainedModel):
         self.bert = BertModel(config)
 
         # cnn
-        # self.bert_convs = nn.ModuleList([nn.Conv1d(in_channels=hidden_size,
-        #                                            out_channels=hidden_size,
-        #                                            kernel_size=k) for k in [2, 3, 4]
-        #                                  ])
+        self.bert_convs = nn.ModuleList([nn.Conv1d(in_channels=hidden_size,
+                                                   out_channels=hidden_size,
+                                                   kernel_size=k) for k in [2, 3, 4]
+                                         ])
         # self.word2vec_convs = nn.ModuleList([nn.Conv1d(in_channels=200,
         #                                                out_channels=200,
         #                                                kernel_size=k) for k in [2, 3, 4]])

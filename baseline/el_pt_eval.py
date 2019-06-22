@@ -284,17 +284,16 @@ def extract_items(text_in):
                 _subject = text_in[i:j + 1]
                 _subjects.append((_subject, str(i), str(j + 1)))
 
-    # subject补余
+    # # subject补余
     # for sup in match2(text_in):
     #     _subjects.append(sup)
-
-    # subject归一
-    _subjects = list(set(_subjects))
-    for _s in _subjects:
-        if _s[0] in freq:
-            r = np.random.random()
-            if r> freq[_s[0]]['per']:
-                _subjects.remove(_s)
+    #
+    # # subject归一
+    # _subjects = list(set(_subjects))
+    # for _s in _subjects:
+    #     if _s[0] in freq:
+    #         if freq[_s[0]]['per'] < 0.8:
+    #             _subjects.remove(_s)
 
     if _subjects:
         R = []
