@@ -18,5 +18,5 @@ for e in err:
         eq+=1
         eq_list.append((e['text'],e['mention_data'],e['predict']))
 
-print(f'p_less:{p_less}, t_less:{t_less}, eq:{eq}')
+print(f'p_less:{p_less}, t_less:{t_less}, eq:{eq}')  # p_less:937, t_less:1119, eq:831
 print('done')

@@ -72,7 +72,7 @@ def freq():
     for w in freq_dic:
         doc = freq_dic[w]
         doc.update({'word': w})
-        s = json.dumps(doc)
+        s = json.dumps(doc, ensure_ascii=False)
         p.write(s + '\n')
 
 if __name__ == '__main__':

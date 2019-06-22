@@ -133,79 +133,79 @@ def seq2vec(token_ids):
     return V
 
 
-class data_generator:
-    def __init__(self, data, batch_size=64):
-        self.data = data
-        self.batch_size = batch_size
-        self.steps = len(self.data) // self.batch_size
-        if len(self.data) % self.batch_size != 0:
-            self.steps += 1
-
-    def __len__(self):
-        return self.steps
-
-    def __iter__(self):
-        idxs = list(range(len(self.data)))
-        np.random.shuffle(idxs)
-        X1, X2, S1, S2, Y, T, X1_MASK, X2_MASK, TT, TT2 = [], [], [], [], [], [], [], [], [], []
-        for i in idxs:
-            d = self.data[i]
-            text_tokens = d['text_words']
-            text = d['text']
-            assert len(text) == len(''.join(text_tokens))
-
-            x1 = [bert_vocab.get(c, bert_vocab.get('[UNK]')) for c in text]
-            x1_mask = [1] * len(x1)
-            s1, s2 = np.zeros(len(text)), np.zeros(len(text))
-            mds = {}
-            for md in d['mention_data']:
-                if md[0] in kb2id:  # train subject存在于kb subject
-                    j1 = md[1]
-                    j2 = md[1] + len(md[0])
-                    s1[j1] = 1
-                    s2[j2 - 1] = 1
-                    mds[(j1, j2)] = (md[0], md[2])
-
-            if mds:
-                j1, j2 = choice(list(mds.keys()))
-                y = np.zeros(len(text))
-                y[j1:j2] = 1
-                x2 = choice(kb2id[mds[(j1, j2)][0]])
-                if x2 == mds[(j1, j2)][1]:
-                    t = [1]
-                else:
-                    t = [0]
-                x2 = id2kb[x2]['subject_desc']
-                x2_tokens = jieba.lcut(x2)
-                x2 = ''.join(x2_tokens)
-                x2 = [bert_vocab.get(c, bert_vocab.get('[UNK]')) for c in x2]
-                x2_mask = [1] * len(x2)
-                X1.append(x1)
-                X2.append(x2)
-                S1.append(s1)
-                S2.append(s2)
-                Y.append(y)
-                T.append(t)
-                X1_MASK.append(x1_mask)
-                X2_MASK.append(x2_mask)
-                TT.append(text_tokens)
-                TT2.append(x2_tokens)
-                if len(X1) == self.batch_size or i == idxs[-1]:
-                    X1 = torch.tensor(seq_padding(X1), dtype=torch.long)  # [b,s1]
-                    X2 = torch.tensor(seq_padding(X2), dtype=torch.long)  # [b,s2]
-                    S1 = torch.tensor(seq_padding(S1), dtype=torch.float32)  # [b,s1]
-                    S2 = torch.tensor(seq_padding(S2), dtype=torch.float32)  # [b,s1]
-                    Y = torch.tensor(seq_padding(Y), dtype=torch.float32)  # [b,s1]
-                    T = torch.tensor(T, dtype=torch.float32)  # [b,1]
-                    X1_MASK = torch.tensor(seq_padding(X1_MASK), dtype=torch.long)
-                    X2_MASK = torch.tensor(seq_padding(X2_MASK), dtype=torch.long)
-                    X1_SEG = torch.zeros(*X1.size(), dtype=torch.long)
-                    X2_SEG = torch.zeros(*X2.size(), dtype=torch.long)
-                    TT = torch.tensor(seq2vec(TT), dtype=torch.float32)
-                    TT2 = torch.tensor(seq2vec(TT2), dtype=torch.float32)
-
-                    yield [X1, X2, S1, S2, Y, T, X1_MASK, X2_MASK, X1_SEG, X2_SEG, TT, TT2]
-                    X1, X2, S1, S2, Y, T, X1_MASK, X2_MASK, TT, TT2 = [], [], [], [], [], [], [], [], [], []
+# class data_generator:
+#     def __init__(self, data, batch_size=64):
+#         self.data = data
+#         self.batch_size = batch_size
+#         self.steps = len(self.data) // self.batch_size
+#         if len(self.data) % self.batch_size != 0:
+#             self.steps += 1
+#
+#     def __len__(self):
+#         return self.steps
+#
+#     def __iter__(self):
+#         idxs = list(range(len(self.data)))
+#         np.random.shuffle(idxs)
+#         X1, X2, S1, S2, Y, T, X1_MASK, X2_MASK, TT, TT2 = [], [], [], [], [], [], [], [], [], []
+#         for i in idxs:
+#             d = self.data[i]
+#             text_tokens = d['text_words']
+#             text = d['text']
+#             assert len(text) == len(''.join(text_tokens))
+#
+#             x1 = [bert_vocab.get(c, bert_vocab.get('[UNK]')) for c in text]
+#             x1_mask = [1] * len(x1)
+#             s1, s2 = np.zeros(len(text)), np.zeros(len(text))
+#             mds = {}
+#             for md in d['mention_data']:
+#                 if md[0] in kb2id:  # train subject存在于kb subject
+#                     j1 = md[1]
+#                     j2 = md[1] + len(md[0])
+#                     s1[j1] = 1
+#                     s2[j2 - 1] = 1
+#                     mds[(j1, j2)] = (md[0], md[2])
+#
+#             if mds:
+#                 j1, j2 = choice(list(mds.keys()))
+#                 y = np.zeros(len(text))
+#                 y[j1:j2] = 1
+#                 x2 = choice(kb2id[mds[(j1, j2)][0]])
+#                 if x2 == mds[(j1, j2)][1]:
+#                     t = [1]
+#                 else:
+#                     t = [0]
+#                 x2 = id2kb[x2]['subject_desc']
+#                 x2_tokens = jieba.lcut(x2)
+#                 x2 = ''.join(x2_tokens)
+#                 x2 = [bert_vocab.get(c, bert_vocab.get('[UNK]')) for c in x2]
+#                 x2_mask = [1] * len(x2)
+#                 X1.append(x1)
+#                 X2.append(x2)
+#                 S1.append(s1)
+#                 S2.append(s2)
+#                 Y.append(y)
+#                 T.append(t)
+#                 X1_MASK.append(x1_mask)
+#                 X2_MASK.append(x2_mask)
+#                 TT.append(text_tokens)
+#                 TT2.append(x2_tokens)
+#                 if len(X1) == self.batch_size or i == idxs[-1]:
+#                     X1 = torch.tensor(seq_padding(X1), dtype=torch.long)  # [b,s1]
+#                     X2 = torch.tensor(seq_padding(X2), dtype=torch.long)  # [b,s2]
+#                     S1 = torch.tensor(seq_padding(S1), dtype=torch.float32)  # [b,s1]
+#                     S2 = torch.tensor(seq_padding(S2), dtype=torch.float32)  # [b,s1]
+#                     Y = torch.tensor(seq_padding(Y), dtype=torch.float32)  # [b,s1]
+#                     T = torch.tensor(T, dtype=torch.float32)  # [b,1]
+#                     X1_MASK = torch.tensor(seq_padding(X1_MASK), dtype=torch.long)
+#                     X2_MASK = torch.tensor(seq_padding(X2_MASK), dtype=torch.long)
+#                     X1_SEG = torch.zeros(*X1.size(), dtype=torch.long)
+#                     X2_SEG = torch.zeros(*X2.size(), dtype=torch.long)
+#                     TT = torch.tensor(seq2vec(TT), dtype=torch.float32)
+#                     TT2 = torch.tensor(seq2vec(TT2), dtype=torch.float32)
+#
+#                     yield [X1, X2, S1, S2, Y, T, X1_MASK, X2_MASK, X1_SEG, X2_SEG, TT, TT2]
+#                     X1, X2, S1, S2, Y, T, X1_MASK, X2_MASK, TT, TT2 = [], [], [], [], [], [], [], [], [], []
 
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -256,7 +256,7 @@ optimizer = BertAdam(optimizer_grouped_parameters,
                      warmup=warmup_proportion,
                      t_total=num_train_optimization_steps)
 
-
+freq = json.load((Path(data_dir)/'freq_dic.json').open())
 def extract_items(text_in):
     _x1_tokens = jieba.lcut(text_in)
     _x1 = ''.join(_x1_tokens)
@@ -271,23 +271,30 @@ def extract_items(text_in):
 
     with torch.no_grad():
         _k1, _k2, _x1_hs, _x1_h = subject_model('x1',device,_X1_WV, _X1, _X1_SEG, _X1_MASK)  # _k1:[1,s]
-        _k1 = _k1[0, :].detach().cpu().numpy()
-        _k2 = _k2[0, :].detach().cpu().numpy()
-        _k1, _k2 = np.where(_k1 > 0.5)[0], np.where(_k2 > 0.5)[0]
+    #     _k1 = _k1[0, :].detach().cpu().numpy()
+    #     _k2 = _k2[0, :].detach().cpu().numpy()
+    #     _k1, _k2 = np.where(_k1 > 0.3)[0], np.where(_k2 > 0.5)[0]
 
     _subjects = []
-    if len(_k1) and len(_k2):
-        for i in _k1:
-            j = _k2[_k2 >= i]
-            if len(j) > 0:
-                j = j[0]
-                _subject = text_in[i:j + 1]
-                _subjects.append((_subject, str(i), str(j + 1)))
+    # if len(_k1) and len(_k2):
+    #     for i in _k1:
+    #         j = _k2[_k2 >= i]
+    #         if len(j) > 0:
+    #             j = j[0]
+    #             _subject = text_in[i:j + 1]
+    #             _subjects.append((_subject, str(i), str(j + 1)))
 
     # subject补余
     for sup in match2(text_in):
         _subjects.append(sup)
+
+    # subject归一
     _subjects = list(set(_subjects))
+    for _s in _subjects:
+        if _s[0] in freq:
+            r = np.random.random()
+            if r> freq[_s[0]]['per']:
+                _subjects.remove(_s)
 
     if _subjects:
         R = []
@@ -350,7 +357,7 @@ def extract_items(text_in):
 
 best_score = 0
 best_epoch = 0
-train_D = data_generator(train_data)
+# train_D = data_generator(train_data)
 for e in range(1):
     # subject_model.train()
     # object_model.train()
