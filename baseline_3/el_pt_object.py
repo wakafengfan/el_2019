@@ -6,8 +6,6 @@ from itertools import groupby
 from pathlib import Path
 from random import choice
 
-import gensim
-import jieba
 import numpy as np
 import torch
 import torch.nn as nn
@@ -15,15 +13,14 @@ from pytorch_pretrained_bert import BertAdam, BertConfig
 from torch.utils.data import DataLoader, TensorDataset
 from tqdm import tqdm
 
-from configuration.match import match2
-from baseline_2.model_zoo import SubjectModel, ObjectModel
+from baseline_3.model_zoo import ObjectModel
 from configuration.config import data_dir, bert_vocab_path, bert_model_path, bert_data_path
 
 min_count = 2
 mode = 0
 hidden_size = 768
 epoch_num = 10
-batch_size = 64
+batch_size = 32
 
 logging.basicConfig(format='%(asctime)s - %(levelname)s - %(name)s - %(message)s',
                     datefmt='%m/%d/%y %H:%M:%S',
@@ -81,6 +78,30 @@ def seq_padding(X):
     ML = max(map(len, X))
     return np.array([list(x) + [0] * (ML - len(x)) for x in X])
 
+def seq_padding_bert(X_):
+    X_ids, X_SEGs, X_MASKs = [],[],[]
+    ML = max(map(lambda x: len(x[0]) + len(x[1]) + 3, X_))
+    for _ in X_:
+        X1_ids = [bert_vocab['[CLS]']] + _[0] + [bert_vocab['[SEP]']]
+        X1_SEG = [0] * len(X1_ids)
+        X2_ids = _[1] + [bert_vocab['[SEP]']]
+        X2_SEG = [1] * len(X2_ids)
+
+        X_id = X1_ids + X2_ids
+        X_SEG = X1_SEG + X2_SEG
+
+        L = len(X_id)
+        X_MASK = [1] * len(X_id) + [0] * (ML-L)
+
+        X_id += [0] * (ML-L)  # padding
+        X_SEG += [0] * (ML-L)
+
+        X_ids.append(X_id)
+        X_SEGs.append(X_SEG)
+        X_MASKs.append(X_MASK)
+
+    return X_ids, X_SEGs, X_MASKs
+
 
 def load_vocab(vocab_file):
     """Loads a vocabulary file into a dictionary."""
@@ -119,9 +140,9 @@ bert_vocab = load_vocab(bert_vocab_path)
 
 
 class data_generator:
-    def __init__(self, data, batch_size=64):
+    def __init__(self, data, bs=batch_size):
         self.data = data
-        self.batch_size = batch_size
+        self.batch_size = bs
         self.steps = len(self.data) // self.batch_size
         if len(self.data) % self.batch_size != 0:
             self.steps += 1
@@ -132,13 +153,11 @@ class data_generator:
     def __iter__(self):
         idxs = list(range(len(self.data)))
         np.random.shuffle(idxs)
-        X1, X2, S1, S2, Y, T, X1_MASK, X2_MASK, TT, TT2 = [], [], [], [], [], [], [], [], [], []
+        X, T = [], []
         for i in idxs:
             d = self.data[i]
             text = d['text']
 
-            x1 = [bert_vocab.get(c, bert_vocab.get('[UNK]')) for c in text]
-            x1_mask = [1] * len(x1)
             s1, s2 = np.zeros(len(text)), np.zeros(len(text))
             mds = {}
             for md in d['mention_data']:
@@ -151,44 +170,29 @@ class data_generator:
 
             if mds:
                 j1, j2 = choice(list(mds.keys()))
-                y = np.zeros(len(text))
-                y[j1:j2] = 1
                 x2 = choice(kb2id[mds[(j1, j2)][0]])
                 if x2 == mds[(j1, j2)][1]:
                     t = [1]
                 else:
                     t = [0]
                 x2 = id2kb[x2]['subject_desc']
-                x2_tokens = jieba.lcut(x2)
-                x2 = ''.join(x2_tokens)
-                x2 = [bert_vocab.get(c, bert_vocab.get('[UNK]')) for c in x2]
-                x2_mask = [1] * len(x2)
-                X1.append(x1)
-                X2.append(x2)
-                S1.append(s1)
-                S2.append(s2)
-                Y.append(y)
-                T.append(t)
-                X1_MASK.append(x1_mask)
-                X2_MASK.append(x2_mask)
-                TT.append(text_tokens)
-                TT2.append(x2_tokens)
-                if len(X1) == self.batch_size or i == idxs[-1]:
-                    X1 = torch.tensor(seq_padding(X1), dtype=torch.long)  # [b,s1]
-                    X2 = torch.tensor(seq_padding(X2), dtype=torch.long)  # [b,s2]
-                    S1 = torch.tensor(seq_padding(S1), dtype=torch.float32)  # [b,s1]
-                    S2 = torch.tensor(seq_padding(S2), dtype=torch.float32)  # [b,s1]
-                    Y = torch.tensor(seq_padding(Y), dtype=torch.float32)  # [b,s1]
-                    T = torch.tensor(T, dtype=torch.float32)  # [b,1]
-                    X1_MASK = torch.tensor(seq_padding(X1_MASK), dtype=torch.long)
-                    X2_MASK = torch.tensor(seq_padding(X2_MASK), dtype=torch.long)
-                    X1_SEG = torch.zeros(*X1.size(), dtype=torch.long)
-                    X2_SEG = torch.zeros(*X2.size(), dtype=torch.long)
-                    TT = torch.tensor(seq2vec(TT), dtype=torch.float32)
-                    TT2 = torch.tensor(seq2vec(TT2), dtype=torch.float32)
 
-                    yield [X1, X2, S1, S2, Y, T, X1_MASK, X2_MASK, X1_SEG, X2_SEG, TT, TT2]
-                    X1, X2, S1, S2, Y, T, X1_MASK, X2_MASK, TT, TT2 = [], [], [], [], [], [], [], [], [], []
+                x1_ids = [bert_vocab.get(c, bert_vocab.get('[UNK]')) for c in text]
+                x2_ids = [bert_vocab.get(c, bert_vocab.get('[UNK]')) for c in x2]
+
+                X.append((x1_ids, x2_ids))
+                T.append(t)
+
+                if len(X) == self.batch_size or i == idxs[-1]:
+                    X_ids, X_SEGs, X_MASKs = seq_padding_bert(X)
+                    X_ids = torch.tensor(X_ids, dtype=torch.long)
+                    X_SEGs = torch.tensor(X_SEGs, dtype=torch.long)
+                    X_MASKs = torch.tensor(X_MASKs, dtype=torch.long)
+
+                    T = torch.tensor(T, dtype=torch.float32)  # [b,1]
+
+                    yield [X_ids, T, X_SEGs, X_MASKs]
+                    X, T = [], []
 
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -197,32 +201,24 @@ n_gpu = torch.cuda.device_count()
 pretrain = False
 if pretrain:
     config = BertConfig(str(Path(data_dir) / 'subject_model_config.json'))
-    subject_model = SubjectModel(config)
-    subject_model.load_state_dict(
-        torch.load(Path(data_dir) / 'subject_model.pt', map_location='cpu' if not torch.cuda.is_available() else None))
-
-    object_model = ObjectModel()
+    object_model = ObjectModel(config)
     object_model.load_state_dict(
         torch.load(Path(data_dir) / 'object_model.pt', map_location='cpu' if not torch.cuda.is_available() else None))
 else:
-    subject_model = SubjectModel.from_pretrained(pretrained_model_name_or_path=bert_model_path, cache_dir=bert_data_path)
-    object_model = ObjectModel()
+    object_model = ObjectModel.from_pretrained(pretrained_model_name_or_path=bert_model_path, cache_dir=bert_data_path)
 
-subject_model.to(device)
 object_model.to(device)
 if n_gpu > 1:
     torch.cuda.manual_seed_all(42)
 
     logger.info(f'let us use {n_gpu} gpu')
-    subject_model = torch.nn.DataParallel(subject_model)
     object_model = torch.nn.DataParallel(object_model)
 
 # loss
-b_loss_func = nn.BCELoss(reduction='none')
 b2_loss_func = nn.BCELoss()
 
 # optim
-param_optimizer = list(subject_model.named_parameters()) + list(object_model.named_parameters())
+param_optimizer = list(object_model.named_parameters())
 no_decay = ['bias', 'LayerNorm.bias', 'LayerNorm.weight']
 optimizer_grouped_parameters = [
     {'params': [p for n, p in param_optimizer if not any(nd in n for nd in no_decay)], 'weight_decay': 0.01},
@@ -241,87 +237,47 @@ optimizer = BertAdam(optimizer_grouped_parameters,
 
 freq = json.load((Path(data_dir)/'freq_dic.json').open())
 
-def extract_items(text_in):
-    _x1_tokens = jieba.lcut(text_in)
-    _x1 = ''.join(_x1_tokens)
-    assert len(_x1) == len(text_in)
-
-    _X1 = [bert_vocab.get(c, bert_vocab.get('[UNK]')) for c in _x1]
-    _X1_MASK = [1] * len(_X1)
-    _X1 = torch.tensor([_X1], dtype=torch.long, device=device)  # [1,s1]
-    _X1_MASK = torch.tensor([_X1_MASK], dtype=torch.long, device=device)
-    _X1_SEG = torch.zeros(*_X1.size(), dtype=torch.long, device=device)
-    _X1_WV = torch.tensor(seq2vec([_x1_tokens]), dtype=torch.float32, device=device)
-
-    with torch.no_grad():
-        _k1, _k2, _x1_hs, _x1_h = subject_model('x1',device,_X1_WV, _X1, _X1_SEG, _X1_MASK)  # _k1:[1,s]
-        _k1 = _k1[0, :].detach().cpu().numpy()
-        _k2 = _k2[0, :].detach().cpu().numpy()
-        _k1, _k2 = np.where(_k1 > 0.3)[0], np.where(_k2 > 0.5)[0]
-
+def extract_items(d):
     _subjects = []
-    if len(_k1) and len(_k2):
-        for i in _k1:
-            j = _k2[_k2 >= i]
-            if len(j) > 0:
-                j = j[0]
-                _subject = text_in[i:j + 1]
-                _subjects.append((_subject, str(i), str(j + 1)))
+    text = d['text']
+    _x1 = [bert_vocab.get(c, bert_vocab.get('[UNK]')) for c in text]
+    mention_data = d['mention_data']
 
-    # subject补余
-    for _s in match2(text_in):
-        if _s[0] in freq:
-            if freq[_s[0]]['per'] > 0.8:
-                _subjects.append(_s)
-    _subjects = list(set(_subjects))
+    if mention_data:
+        for m in mention_data:
+            if m[0] in kb2id:
+                _subjects.append((m[0], m[1], m[1]+len(m[0])))
 
     if _subjects:
         R = []
-        _X2, _X2_MASK, _Y, _X2_wv = [], [], [], []
-        _S, _IDXS = [], {}
+        _X, _S = [], []
+        _IDXS = {}
         for _X1 in _subjects:
-            if _X1[0] in ['的']:
-                continue
-            _y = np.zeros(len(text_in))
-            _y[int(_X1[1]):int(_X1[2])] = 1
             _IDXS[_X1] = kb2id.get(_X1[0], [])
-            # 每个subject只取10个链指
             for idx, i in enumerate(_IDXS[_X1]):
-                if idx > 15:
+                if idx > 15:  # 只取15个匹配
                     break
                 _x2 = id2kb[i]['subject_desc']
-                _x2_tokens = jieba.lcut(_x2)
-                _x2 = ''.join(_x2_tokens)
                 _x2 = [bert_vocab.get(c, bert_vocab.get('[UNK]')) for c in _x2]
-                _x2_mask = [1] * len(_x2)
 
-                _X2.append(_x2)
-                _X2_MASK.append(_x2_mask)
-                _Y.append(_y)
+                _X.append((_x1, _x2))
                 _S.append(_X1)
-                _X2_wv.append(_x2_tokens)
-        if _X2:
+        if _X:
             _O = []
-            _X2 = torch.tensor(seq_padding(_X2), dtype=torch.long)  # [b,s2]
-            _X2_MASK = torch.tensor(seq_padding(_X2_MASK), dtype=torch.long)
-            _X2_SEG = torch.zeros(*_X2.size(), dtype=torch.long)
-            _Y = torch.tensor(seq_padding(_Y), dtype=torch.float32)
-            _X1_HS = _x1_hs.expand(_X2.size(0), -1, -1)  # [b,s1,h]
-            _X1_H = _x1_h.expand(_X2.size(0), -1)  # [b,s1]
-            _X1_MASK = _X1_MASK.expand(_X2.size(0), -1)  # [b,s1]
-            _X1_wv = _X1_WV.expand(_X2.size(0),-1,-1) # [b,s1,200]
-            _X2_wv = torch.tensor(seq2vec(_X2_wv), dtype=torch.float32)
+
+            _X_ids, _X_SEGs, _X_MASKs = seq_padding_bert(_X)
+            _X_ids = torch.tensor(_X_ids, dtype=torch.long)
+            _X_SEGs = torch.tensor(_X_SEGs, dtype=torch.long)
+            _X_MASKs = torch.tensor(_X_MASKs, dtype=torch.long)
 
             eval_dataloader = DataLoader(
-                TensorDataset(_X2, _X2_SEG, _X2_MASK, _X1_HS, _X1_H, _X1_MASK, _Y, _X1_wv, _X2_wv), batch_size=64)
+                TensorDataset(_X_ids, _X_SEGs, _X_MASKs), batch_size=64)
 
             for batch_idx, batch in enumerate(eval_dataloader):
                 batch = tuple(t.to(device) for t in batch)
-                _X2, _X2_SEG, _X2_MASK, _X1_HS, _X1_H, _X1_MASK, _Y, _X1_wv, _X2_wv = batch
+                _x_ids, _x_seg, _x_mask = batch
                 with torch.no_grad():
-                    _x2, _x2_h = subject_model('x2',None, None, None, None, None, _X2, _X2_SEG, _X2_MASK)
-                    _o, _, _ = object_model(_X1_HS, _X1_H, _X1_MASK, _Y, _x2, _x2_h, _X2_MASK, _X1_wv,
-                                            _X2_wv)  # _o:[b,1]
+                    _o = object_model(_x_ids, _x_seg, _x_mask)  # _o:[b,1]
                     _o = _o.detach().cpu().numpy()
                     _O.extend(_o)
 
@@ -338,7 +294,6 @@ best_score = 0
 best_epoch = 0
 train_D = data_generator(train_data)
 for e in range(epoch_num):
-    subject_model.train()
     object_model.train()
     batch_idx = 0
     tr_total_loss = 0
@@ -350,44 +305,29 @@ for e in range(epoch_num):
         #     break
 
         batch = tuple(t.to(device) for t in batch)
-        X1, X2, S1, S2, Y, T, X1_MASK, X2_MASK, X1_SEG, X2_SEG, TT, TT2 = batch
-        pred_s1, pred_s2, x1_hs, x1_h = subject_model('x1', device,TT, X1, X1_SEG, X1_MASK)
-        x2_hs, x2_h = subject_model('x2', None,None,None, None, None, X2, X2_SEG, X2_MASK)
-        pred_o, x1_mask_, x2_mask_ = object_model(x1_hs, x1_h, X1_MASK, Y, x2_hs, x2_h, X2_MASK, TT, TT2)
-
-        s1_loss = b_loss_func(pred_s1, S1)  # [b,s]
-        s2_loss = b_loss_func(pred_s2, S2)
-
-        s1_loss.masked_fill_(x1_mask_, 0)
-        s2_loss.masked_fill_(x1_mask_, 0)
-
-        total_ele = X1.size(0) * X1.size(1) - torch.sum(x1_mask_)
-        s1_loss = torch.sum(s1_loss) / total_ele
-        s2_loss = torch.sum(s2_loss) / total_ele
+        X_ids, T, X_SEGs, X_MASKs = batch
+        pred_o = object_model(X_ids, X_SEGs, X_MASKs)
 
         po_loss = b2_loss_func(pred_o, T)
 
-        tmp_loss = (s1_loss + s2_loss) + po_loss
-
         if n_gpu > 1:
-            tmp_loss = tmp_loss.mean()
+            po_loss = po_loss.mean()
 
-        tmp_loss.backward()
+        po_loss.backward()
 
         optimizer.step()
         optimizer.zero_grad()
 
-        tr_total_loss += tmp_loss.item()
+        tr_total_loss += po_loss.item()
         if batch_idx % 100 == 0:
             logger.info(f'Epoch:{e} - batch:{batch_idx}/{train_D.steps} - loss: {tr_total_loss / batch_idx:.8f}')
 
-    subject_model.eval()
     object_model.eval()
     A, B, C = 1e-10, 1e-10, 1e-10
     err_dict = defaultdict(list)
     for eval_idx, d in tqdm(enumerate(dev_data[:5000])):
 
-        R = set(map(lambda x: (str(x[0]), str(x[1]), str(x[2])), set(extract_items(d['text']))))
+        R = set(map(lambda x: (str(x[0]), str(x[1]), str(x[2])), set(extract_items(d))))
         T = set(map(lambda x: (str(x[0]), str(x[1]), str(x[2])), set(d['mention_data'])))
         A += len(R & T)
         B += len(R)
@@ -405,15 +345,13 @@ for e in range(epoch_num):
         best_score = f1
         best_epoch = e
 
-        json.dump(err_dict, (Path(data_dir) / 'err_log.json').open('w'), ensure_ascii=False)
+        json.dump(err_dict, (Path(data_dir) / 'err_log_object.json').open('w'), ensure_ascii=False, indent=4)
 
-        s_model_to_save = subject_model.module if hasattr(subject_model, 'module') else subject_model
         o_model_to_save = object_model.module if hasattr(object_model, 'module') else object_model
 
-        torch.save(s_model_to_save.state_dict(), data_dir + '/subject_model.pt')
         torch.save(o_model_to_save.state_dict(), data_dir + '/object_model.pt')
 
-        (Path(data_dir) / 'subject_model_config.json').open('w').write(s_model_to_save.config.to_json_string())
+        (Path(data_dir) / 'subject_model_config.json').open('w').write(o_model_to_save.config.to_json_string())
 
     logger.info(
         f'Epoch:{e}-precision:{precision:.4f}-recall:{recall:.4f}-f1:{f1:.4f} - best f1: {best_score:.4f} - best epoch:{best_epoch}')
