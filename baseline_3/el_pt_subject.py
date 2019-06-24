@@ -19,7 +19,7 @@ min_count = 2
 mode = 0
 hidden_size = 768
 epoch_num = 10
-batch_size = 64
+batch_size = 32
 
 logging.basicConfig(format='%(asctime)s - %(levelname)s - %(name)s - %(message)s',
                     datefmt='%m/%d/%y %H:%M:%S',
@@ -116,9 +116,9 @@ bert_vocab = load_vocab(bert_vocab_path)
 
 
 class data_generator:
-    def __init__(self, data, batch_size=64):
+    def __init__(self, data, bs=batch_size):
         self.data = data
-        self.batch_size = batch_size
+        self.batch_size = bs
         self.steps = len(self.data) // self.batch_size
         if len(self.data) % self.batch_size != 0:
             self.steps += 1
