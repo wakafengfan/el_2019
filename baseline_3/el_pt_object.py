@@ -345,13 +345,13 @@ for e in range(epoch_num):
         best_score = f1
         best_epoch = e
 
-        json.dump(err_dict, (Path(data_dir) / 'err_log_object.json').open('w'), ensure_ascii=False, indent=4)
+        json.dump(err_dict, (Path(data_dir) / 'object_err_log.json').open('w'), ensure_ascii=False, indent=4)
 
         o_model_to_save = object_model.module if hasattr(object_model, 'module') else object_model
 
         torch.save(o_model_to_save.state_dict(), data_dir + '/object_model.pt')
 
-        (Path(data_dir) / 'subject_model_config.json').open('w').write(o_model_to_save.config.to_json_string())
+        (Path(data_dir) / 'object_model_config.json').open('w').write(o_model_to_save.config.to_json_string())
 
     logger.info(
         f'Epoch:{e}-precision:{precision:.4f}-recall:{recall:.4f}-f1:{f1:.4f} - best f1: {best_score:.4f} - best epoch:{best_epoch}')

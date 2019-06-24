@@ -255,45 +255,45 @@ def extract_items(text_in):
 
 best_score = 0
 best_epoch = 0
-train_D = data_generator(train_data)
-for e in range(epoch_num):
-    subject_model.train()
-    batch_idx = 0
-    tr_total_loss = 0
-    dev_total_loss = 0
-
-    for batch in train_D:
-        batch_idx += 1
-        # if batch_idx > 1:
-        #     break
-
-        batch = tuple(t.to(device) for t in batch)
-        X1, S1, S2, Y, X1_MASK, X1_SEG = batch
-        pred_s1, pred_s2, x1_mask_ = subject_model(device, X1, X1_SEG, X1_MASK)
-
-        s1_loss = b_loss_func(pred_s1, S1)  # [b,s]
-        s2_loss = b_loss_func(pred_s2, S2)
-
-        s1_loss.masked_fill_(x1_mask_, 0)
-        s2_loss.masked_fill_(x1_mask_, 0)
-
-        total_ele = X1.size(0) * X1.size(1) - torch.sum(x1_mask_)
-        s1_loss = torch.sum(s1_loss) / total_ele
-        s2_loss = torch.sum(s2_loss) / total_ele
-
-        tmp_loss = s1_loss + s2_loss
-
-        if n_gpu > 1:
-            tmp_loss = tmp_loss.mean()
-
-        tmp_loss.backward()
-
-        optimizer.step()
-        optimizer.zero_grad()
-
-        tr_total_loss += tmp_loss.item()
-        if batch_idx % 100 == 0:
-            logger.info(f'Epoch:{e} - batch:{batch_idx}/{train_D.steps} - loss: {tr_total_loss / batch_idx:.8f}')
+# train_D = data_generator(train_data)
+for e in range(1):
+    # subject_model.train()
+    # batch_idx = 0
+    # tr_total_loss = 0
+    # dev_total_loss = 0
+    #
+    # for batch in train_D:
+    #     batch_idx += 1
+    #     # if batch_idx > 1:
+    #     #     break
+    #
+    #     batch = tuple(t.to(device) for t in batch)
+    #     X1, S1, S2, Y, X1_MASK, X1_SEG = batch
+    #     pred_s1, pred_s2, x1_mask_ = subject_model(device, X1, X1_SEG, X1_MASK)
+    #
+    #     s1_loss = b_loss_func(pred_s1, S1)  # [b,s]
+    #     s2_loss = b_loss_func(pred_s2, S2)
+    #
+    #     s1_loss.masked_fill_(x1_mask_, 0)
+    #     s2_loss.masked_fill_(x1_mask_, 0)
+    #
+    #     total_ele = X1.size(0) * X1.size(1) - torch.sum(x1_mask_)
+    #     s1_loss = torch.sum(s1_loss) / total_ele
+    #     s2_loss = torch.sum(s2_loss) / total_ele
+    #
+    #     tmp_loss = s1_loss + s2_loss
+    #
+    #     if n_gpu > 1:
+    #         tmp_loss = tmp_loss.mean()
+    #
+    #     tmp_loss.backward()
+    #
+    #     optimizer.step()
+    #     optimizer.zero_grad()
+    #
+    #     tr_total_loss += tmp_loss.item()
+    #     if batch_idx % 100 == 0:
+    #         logger.info(f'Epoch:{e} - batch:{batch_idx}/{train_D.steps} - loss: {tr_total_loss / batch_idx:.8f}')
 
     subject_model.eval()
     A, B, C = 1e-10, 1e-10, 1e-10
