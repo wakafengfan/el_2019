@@ -219,7 +219,6 @@ optimizer = BertAdam(optimizer_grouped_parameters,
 freq = json.load((Path(data_dir)/'freq_dic.json').open())
 
 def extract_items(text_in):
-    print(subject_model.training)
     _X1 = [bert_vocab.get(c, bert_vocab.get('[UNK]')) for c in text_in]
     _X1_MASK = [1] * len(_X1)
     _X1 = torch.tensor([_X1], dtype=torch.long, device=device)  # [1,s1]
