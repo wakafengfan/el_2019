@@ -171,7 +171,7 @@ class data_generator:
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 n_gpu = torch.cuda.device_count()
 
-pretrain = False
+pretrain = True
 if pretrain:
     config = BertConfig(str(Path(data_dir) / 'subject_model_config.json'))
     subject_model = SubjectModel(config)
@@ -217,6 +217,7 @@ optimizer = BertAdam(optimizer_grouped_parameters,
                      t_total=num_train_optimization_steps)
 
 freq = json.load((Path(data_dir)/'freq_dic.json').open())
+group = json.load((Path(data_dir)/ 'el_group_word').open())
 
 def extract_items(text_in):
     _X1 = [bert_vocab.get(c, bert_vocab.get('[UNK]')) for c in text_in]
@@ -250,7 +251,24 @@ def extract_items(text_in):
         if _s[0] in freq:
             if freq[_s[0]]['per'] > 0.8:
                 _subjects.append(_s)
-    return list(set(_subjects))
+
+    _subjects = list(set(_subjects))
+    _subjects_new = _subjects.copy()
+    for _s,_s_s, _s_e in _subjects:
+        for _i, _i_s,_i_e in _subjects:
+            if _s_s == _i_s and _s_e != _i_e and _s in group:
+                if group[_s]['group_labeled_per'] > 1.5*group[_s]['s_same_per'] and (_i,_i_s,_i_e) in _subjects_new:
+                    _subjects_new.remove((_i,_i_s,_i_e))
+                if group[_s]['s_same_per'] > 1.5*group[_s]['group_labeled_per'] and (_s,_s_s,_s_e) in _subjects_new:
+                    _subjects_new.remove((_s,_s_s,_s_e))
+
+            if _s_s != _i_s and _s_e == _i_e and _s in group:
+                if group[_s]['group_labeled_per'] > 1.5*group[_s]['e_same_per'] and (_i,_i_s,_i_e) in _subjects_new:
+                    _subjects_new.remove((_i,_i_s,_i_e))
+                if group[_s]['e_same_per'] > 1.5*group[_s]['group_labeled_per'] and (_s,_s_s,_s_e) in _subjects_new:
+                    _subjects_new.remove((_s,_s_s,_s_e))
+
+    return list(set(_subjects_new))
 
 best_score = 0
 best_epoch = 0

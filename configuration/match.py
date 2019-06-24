@@ -60,14 +60,16 @@ def match2(text):
     while i < len(text):
         j = i + 1
         word = ''
+        if text[i] == '《':
+            i += 1
+            continue
         while j <= len(text):
             w = text[i:j]
-            # if all(w not in rr for rr in r_) and kb_ac.exists(w) and len(w) > len(word):
-            if kb_ac.exists(w) and len(w) > len(word) and w != '《':
+            if kb_ac.exists(w) and len(w) > len(word):
                 word = w
             j += 1
-        if match_rules(word):
-            # if word != '':
+        # if match_rules(word):
+        if word != '':
             words.append((i, word))
             i += len(word)
         else:
@@ -182,8 +184,10 @@ def tst_entity_des_match():
 
 
 if __name__ == '__main__':
+    a = '中国好声音 第一季 : 倪雅丰《我和你》120727  ..'
+    print(match2(a))
     # tst_entity_des_match()
-    tst_recall()
+    # tst_recall()
     # for a in ['《乱世情》电视剧全集-在线观看-西瓜影音-美国电视剧 ...',
     #           '弗朗茨·舒伯特-德语学习2003年03期',
     #           '叶展_齐鲁证券资管叶展 - 私募基金经理 ╟ 中投在线']:
