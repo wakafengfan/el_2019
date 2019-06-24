@@ -217,7 +217,7 @@ optimizer = BertAdam(optimizer_grouped_parameters,
                      t_total=num_train_optimization_steps)
 
 freq = json.load((Path(data_dir)/'freq_dic.json').open())
-group = json.load((Path(data_dir)/ 'el_group_word').open())
+group = json.load((Path(data_dir)/ 'el_group_word.json').open())
 
 def extract_items(text_in):
     _X1 = [bert_vocab.get(c, bert_vocab.get('[UNK]')) for c in text_in]
