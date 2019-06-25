@@ -290,7 +290,7 @@ def extract_items(d):
         return []
 
 
-best_score = 0
+best_score = 0.879
 best_epoch = 0
 train_D = data_generator(train_data)
 for e in range(epoch_num):

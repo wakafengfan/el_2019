@@ -265,19 +265,26 @@ def extract_items(text_in):
 
 
 subject_model.eval()
-output_path = (Path(data_dir)/'submission_subject.json').open('w')
-cnt = 0
-for l in tqdm((Path(data_dir)/'develop.json').open()):
-    cnt += 1
-    try:
-        doc = json.loads(l)
-        text = doc['text']
-        R = extract_items(text)
-        doc.update({
-            # 'mention_data': [{'mention':str(r[0]), 'offset':str(r[1])} for r in R]
-            'mention_data': [(r[0], int(r[1])) for r in R]
-        })
-        output_path.write(json.dumps(doc, ensure_ascii=False) + '\n')
-    except Exception as e:
-        logger.warning(f'exception cnt: {cnt}')
+# output_path = (Path(data_dir)/'submission_subject.json').open('w')
+# cnt = 0
+# for l in tqdm((Path(data_dir)/'develop.json').open()):
+#     cnt += 1
+#     doc = json.loads(l)
+#     text = doc['text']
+#     R = extract_items(text)
+#     doc.update({
+#         'mention_data': [(r[0], int(r[1])) for r in R]
+#     })
+#     output_path.write(json.dumps(doc, ensure_ascii=False) + '\n')
+
+output_path = (Path(data_dir)/'eval_subject.json').open('w')
+for l in tqdm(dev_data[:5000]):
+    R = extract_items(l['text'])
+    l.update({
+        'mention_data_pred': [(r[0], int(r[1])) for r in R]
+    })
+    output_path.write(json.dumps(l, ensure_ascii=False) + '\n')
+
+
+
 

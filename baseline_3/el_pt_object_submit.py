@@ -237,7 +237,7 @@ def extract_items(d):
     _subjects = []
     text = d['text']
     _x1 = [bert_vocab.get(c, bert_vocab.get('[UNK]')) for c in text]
-    mention_data = d['mention_data']
+    mention_data = d['mention_data_pred']
 
     if mention_data:
         for m in mention_data:
@@ -287,13 +287,34 @@ def extract_items(d):
 
 
 object_model.eval()
-output_path = (Path(data_dir)/'submission_object.json').open('w')
-cnt = 0
-for l in tqdm((Path(data_dir)/'submission_subject.json').open()):
-    cnt += 1
-    doc = json.loads(l)
-    R = extract_items(doc)
-    doc.update({
-        'mention_data': [{'kb_id':str(r[2]), 'mention':str(r[0]), 'offset':str(r[1])} for r in R]
-    })
-    output_path.write(json.dumps(doc, ensure_ascii=False) + '\n')
+# output_path = (Path(data_dir)/'submission_object.json').open('w')
+# cnt = 0
+# for l in tqdm((Path(data_dir)/'submission_subject.json').open()):
+#     cnt += 1
+#     doc = json.loads(l)
+#     R = extract_items(doc)
+#     doc.update({
+#         'mention_data': [{'kb_id':str(r[2]), 'mention':str(r[0]), 'offset':str(r[1])} for r in R]
+#     })
+#     output_path.write(json.dumps(doc, ensure_ascii=False) + '\n')
+
+A, B, C = 1e-10, 1e-10, 1e-10
+err_dict = defaultdict(list)
+for eval_idx, d in tqdm(enumerate(dev_data[:5000])):
+
+    R = set(map(lambda x: (str(x[0]), str(x[1]), str(x[2])), set(extract_items(d))))
+    T = set(map(lambda x: (str(x[0]), str(x[1]), str(x[2])), set(d['mention_data'])))
+    A += len(R & T)
+    B += len(R)
+    C += len(T)
+
+    if R != T:
+        err_dict['err'].append({'text': d['text'],
+                                'mention_data': list(T),
+                                'predict': list(R)})
+    if eval_idx % 100 == 0:
+        logger.info(f'eval_idx:{eval_idx} - precision:{A/B:.5f} - recall:{A/C:.5f} - f1:{2 * A / (B + C):.5f}')
+
+f1, precision, recall = 2 * A / (B + C), A / B, A / C
+
+logger.info(f'precision:{precision:.4f}-recall:{recall:.4f}-f1:{f1:.4f}')
