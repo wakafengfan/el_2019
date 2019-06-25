@@ -54,8 +54,7 @@ train_data = []
 for l in tqdm(json.load((Path(data_dir) / 'train_data_me.json').open())):
     train_data.append({
         'text': l['text'].lower(),
-        'mention_data': [(x['mention'].lower(), int(x['offset']), x['kb_id'])
-                         for x in l['mention_data'] if x['kb_id'] != 'NIL'],
+        'mention_data': [(x['mention'].lower(), int(x['offset']), x['kb_id']) for x in l['mention_data'] if x['kb_id'] == 'NIL'],
         'text_words': list(map(lambda x: x.lower(), l['text_words']))
     })
 
@@ -71,7 +70,7 @@ else:
     random_order = json.load((Path(data_dir) / 'random_order_train.json').open())
 
 dev_data = [train_data[j] for i, j in enumerate(random_order) if i % 9 == mode]
-train_data = [train_data[j] for i, j in enumerate(random_order) if i % 9 != mode]
+# train_data = [train_data[j] for i, j in enumerate(random_order) if i % 9 != mode]
 
 
 def seq_padding(X):
@@ -198,10 +197,14 @@ class data_generator:
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 n_gpu = torch.cuda.device_count()
 
-config = BertConfig(str(Path(data_dir) / 'object_1/object_model_config.json'))
-object_model = ObjectModel(config)
-object_model.load_state_dict(
-    torch.load(Path(data_dir) / 'object_1/object_model.pt', map_location='cpu' if not torch.cuda.is_available() else None))
+pretrain = True
+if pretrain:
+    config = BertConfig(str(Path(data_dir) / 'object_1/object_model_config.json'))
+    object_model = ObjectModel(config)
+    object_model.load_state_dict(
+        torch.load(Path(data_dir) / 'object_1/object_model.pt', map_location='cpu' if not torch.cuda.is_available() else None))
+else:
+    object_model = ObjectModel.from_pretrained(pretrained_model_name_or_path=bert_model_path, cache_dir=bert_data_path)
 
 object_model.to(device)
 if n_gpu > 1:
@@ -215,7 +218,7 @@ def extract_items(d):
     _subjects = []
     text = d['text']
     _x1 = [bert_vocab.get(c, bert_vocab.get('[UNK]')) for c in text]
-    mention_data = d['mention_data_pred']
+    mention_data = d['mention_data']
 
     if mention_data:
         for m in mention_data:
@@ -258,40 +261,41 @@ def extract_items(d):
             for k, v in groupby(zip(_S, _O), key=lambda x: x[0]):
                 v = np.array([j[1] for j in v])
                 kbid = _IDXS[k][np.argmax(v)]
-                R.append((k[0], k[1], kbid))
+                R.append((k[0], k[1], max(v)))
         return list(set(R))
     else:
         return []
 
 
 object_model.eval()
-# output_path = (Path(data_dir)/'submission_object.json').open('w')
-# cnt = 0
-# for l in tqdm((Path(data_dir)/'submission_subject.json').open()):
-#     cnt += 1
-#     doc = json.loads(l)
-#     R = extract_items(doc)
-#     doc.update({
-#         'mention_data': [{'kb_id':str(r[2]), 'mention':str(r[0]), 'offset':str(r[1])} for r in R]
-#     })
-#     output_path.write(json.dumps(doc, ensure_ascii=False) + '\n')
-
 A, B, C = 1e-10, 1e-10, 1e-10
 err_dict = defaultdict(list)
+logger.info(f'NIL dev data size: {len(dev_data)}')
+p = (Path(data_dir)/'NIL_dist.json').open('w')
+score_list = []
+for eval_idx, d in tqdm(enumerate(dev_data)):
+    doc = d
+    for r in extract_items(d):
+        score_list.append(r[2])
+        doc['pred'] = (str(r[0]), str(r[1]), str(r[2]))
 
-for d in tqdm((Path(data_dir)/'eval_subject.json').open()):
-    d = json.loads(d)
+logger.info(f'max: {max(score_list)}, min:{min(score_list)}, mean:{np.mean(score_list)}')
 
-    T = set(map(lambda x: (str(x[0]), str(x[1]), str(x[2])), set(d['mention_data'])))
-    R = set(map(lambda x: (str(x[0]), str(x[1]), str(x[2])), set(extract_items(d))))
-    A += len(R & T)
-    B += len(R)
-    C += len(T)
 
-    if R != T:
-        err_dict['err'].append({'text': d['text'],
-                                'mention_data': list(T),
-                                'predict': list(R)})
-f1, precision, recall = 2 * A / (B + C), A / B, A / C
-
-logger.info(f'precision:{precision:.4f}-recall:{recall:.4f}-f1:{f1:.4f}')
+#     R = set(map(lambda x: (str(x[0]), str(x[1]), str(x[2])), set(extract_items(d))))
+#     T = set(map(lambda x: (str(x[0]), str(x[1]), str(x[2])), set(d['mention_data'])))
+#     A += len(R & T)
+#     B += len(R)
+#     C += len(T)
+#
+#     if R != T:
+#         err_dict['err'].append({'text': d['text'],
+#                                 'mention_data': list(T),
+#                                 'predict': list(R)})
+#     if eval_idx % 100 == 0:
+#         logger.info(f'eval_idx:{eval_idx} - precision:{A/B:.5f} - recall:{A/C:.5f} - f1:{2 * A / (B + C):.5f}')
+#
+# json.dump(err_dict, (Path(data_dir) / 'object_err_log.json').open('w'), ensure_ascii=False, indent=4)
+#
+# f1, precision, recall = 2 * A / (B + C), A / B, A / C
+# logger.info(f'precision:{precision:.4f}-recall:{recall:.4f}-f1:{f1:.4f}')
