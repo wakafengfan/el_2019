@@ -300,7 +300,9 @@ object_model.eval()
 
 A, B, C = 1e-10, 1e-10, 1e-10
 err_dict = defaultdict(list)
-for eval_idx, d in tqdm(enumerate(dev_data[:5000])):
+
+for eval_idx, d in tqdm((Path(data_dir)/'eval_subject.json').open()):
+    d = json.loads(d)
 
     R = set(map(lambda x: (str(x[0]), str(x[1]), str(x[2])), set(extract_items(d))))
     T = set(map(lambda x: (str(x[0]), str(x[1]), str(x[2])), set(d['mention_data'])))
