@@ -291,13 +291,9 @@ output_path = (Path(data_dir)/'submission_object.json').open('w')
 cnt = 0
 for l in tqdm((Path(data_dir)/'submission_subject.json').open()):
     cnt += 1
-    try:
-        doc = json.loads(l)
-        text = doc['text']
-        R = extract_items(text)
-        doc.update({
-            'mention_data': [{'kb_id':str(r[2]), 'mention':str(r[0]), 'offset':str(r[1])} for r in R]
-        })
-        output_path.write(json.dumps(doc, ensure_ascii=False) + '\n')
-    except Exception as e:
-        logger.warning(f'exception cnt: {cnt}')
+    doc = json.loads(l)
+    R = extract_items(doc)
+    doc.update({
+        'mention_data': [{'kb_id':str(r[2]), 'mention':str(r[0]), 'offset':str(r[1])} for r in R]
+    })
+    output_path.write(json.dumps(doc, ensure_ascii=False) + '\n')
