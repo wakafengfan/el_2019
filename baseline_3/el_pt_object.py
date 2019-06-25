@@ -54,8 +54,7 @@ train_data = []
 for l in tqdm(json.load((Path(data_dir) / 'train_data_me.json').open())):
     train_data.append({
         'text': l['text'].lower(),
-        'mention_data': [(x['mention'].lower(), int(x['offset']), x['kb_id'])
-                         for x in l['mention_data'] if x['kb_id'] != 'NIL'],
+        'mention_data': [(x['mention'].lower(), int(x['offset']), x['kb_id']) for x in l['mention_data']],
         'text_words': list(map(lambda x: x.lower(), l['text_words']))
     })
 
@@ -198,12 +197,12 @@ class data_generator:
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 n_gpu = torch.cuda.device_count()
 
-pretrain = True
+pretrain = False
 if pretrain:
-    config = BertConfig(str(Path(data_dir) / 'object_1/object_model_config.json'))
+    config = BertConfig(str(Path(data_dir) / 'object_model_config.json'))
     object_model = ObjectModel(config)
     object_model.load_state_dict(
-        torch.load(Path(data_dir) / 'object_1/object_model.pt', map_location='cpu' if not torch.cuda.is_available() else None))
+        torch.load(Path(data_dir) / 'object_model.pt', map_location='cpu' if not torch.cuda.is_available() else None))
 else:
     object_model = ObjectModel.from_pretrained(pretrained_model_name_or_path=bert_model_path, cache_dir=bert_data_path)
 
@@ -235,7 +234,7 @@ optimizer = BertAdam(optimizer_grouped_parameters,
                      warmup=warmup_proportion,
                      t_total=num_train_optimization_steps)
 
-freq = json.load((Path(data_dir)/'freq_dic.json').open())
+freq = json.load((Path(data_dir)/'el_freq_dic_1.json').open())
 
 def extract_items(d):
     _subjects = []
@@ -282,9 +281,12 @@ def extract_items(d):
                     _O.extend(_o)
 
             for k, v in groupby(zip(_S, _O), key=lambda x: x[0]):
-                v = np.array([j[1] for j in v])
-                kbid = _IDXS[k][np.argmax(v)]
-                R.append((k[0], k[1], kbid))
+                v = np.array([j[1] for j in v if j[1]>0.5])
+                if len(v) == 0:
+                    R.append((k[0], k[1], 'NIL'))
+                else:
+                    kbid = _IDXS[k][np.argmax(v)]
+                    R.append((k[0], k[1], kbid))
         return list(set(R))
     else:
         return []

@@ -45,7 +45,7 @@ def group():
         l = json.loads(l)
         t = l['text']
         exp_words = [(k,sidx,int(sidx)+len(k)) for k,sidx,_ in match2(t)]
-        labeled_words = [(m['mention'],m['offset'],int(m['offset'])+len(m['mention'])) for m in l['mention_data'] if m['kb_id']!='NIL']
+        labeled_words = [(m['mention'],m['offset'],int(m['offset'])+len(m['mention'])) for m in l['mention_data']]
         if not set(exp_words).issuperset(set(labeled_words)):
             for lw, lw_s, lw_e in labeled_words:
                 for ew, ew_s, ew_e in exp_words:
@@ -68,7 +68,7 @@ def group():
     for i, l in tqdm(enumerate((Path(data_dir) / 'train.json').open()), desc='train_data 2'):
         l = json.loads(l)
         ews = [k for k,_,_ in match2(l['text'])]
-        lws = [m['mention'] for m in l['mention_data'] if m['kb_id']!='NIL']
+        lws = [m['mention'] for m in l['mention_data']]
         for w in ews:
             if w in tmp_dic:
                 tmp_dic[w]['group_exp'].append(1)
@@ -85,41 +85,7 @@ def group():
         tmp_sum_dic[w]['s_same_per'] = tmp_sum_dic[w]['s_same_cnt'] / tmp_sum_dic[w]['group_exp_cnt']
         tmp_sum_dic[w]['e_same_per'] = tmp_sum_dic[w]['e_same_cnt'] / tmp_sum_dic[w]['group_exp_cnt']
 
-
-
-
     json.dump(tmp_sum_dic, tmp_p, ensure_ascii=False)
-
-    #     for w, start_idx in exp_words:
-    #         if 'exp' not in freq_dic[w]:
-    #             freq_dic[w]['exp'] = 1
-    #         else:
-    #             freq_dic[w]['exp'] += 1
-    #         if (w,start_idx) in labeled_words:
-    #             if 'labeled' not in freq_dic[w]:
-    #                 freq_dic[w]['labeled'] = 1
-    #             else:
-    #                 freq_dic[w]['labeled'] += 1
-    #
-    # # if match_rules(word)  21825
-    # # if word != ''  16347
-    # print(f'cnt: {cnt}')
-    #
-    # for w in freq_dic:
-    #     if 'labeled' not in freq_dic[w]:
-    #         freq_dic[w]['labeled'] = 0
-    #     freq_dic[w]['per'] = freq_dic[w]['labeled']/freq_dic[w]['exp']
-    # a = [(w, freq_dic[w]['per']) for w in freq_dic]
-    # a = sorted(a, key=lambda x: x[1], reverse=True)
-    #
-    #
-    # p = (Path(data_dir)/'el_freq_dic_1.json').open('w')
-    # json.dump(freq_dic, p, ensure_ascii=False)
-    # for w in freq_dic:
-    #     doc = freq_dic[w]
-    #     doc.update({'word': w})
-    #     s = json.dumps(doc, ensure_ascii=False)
-    #     p.write(s + '\n')
 
 
 def freq():
@@ -155,10 +121,33 @@ def freq():
         l = json.loads(l)
         t = l['text']
         exp_words = [(k,sidx) for k,sidx,_ in match2(t)]
-        labeled_words = [(m['mention'],m['offset']) for m in l['mention_data'] if m['kb_id']!='NIL']
+        labeled_words = [(m['mention'],m['offset']) for m in l['mention_data']]
         if not set(exp_words).issuperset(set(labeled_words)):
             cnt+= 1
+        for w, start_idx in exp_words:
+            if 'exp' not in freq_dic[w]:
+                freq_dic[w]['exp'] = 1
+            else:
+                freq_dic[w]['exp'] += 1
+            if (w,start_idx) in labeled_words:
+                if 'labeled' not in freq_dic[w]:
+                    freq_dic[w]['labeled'] = 1
+                else:
+                    freq_dic[w]['labeled'] += 1
+
+    # if match_rules(word)  21825
+    # if word != ''  16347
+    print(f'cnt: {cnt}')
+
+    for w in freq_dic:
+        if 'labeled' not in freq_dic[w]:
+            freq_dic[w]['labeled'] = 0
+        freq_dic[w]['per'] = freq_dic[w]['labeled']/freq_dic[w]['exp']
+
+    p = (Path(data_dir)/'el_freq_dic_1.json').open('w')
+    json.dump(freq_dic, p, ensure_ascii=False)
 
 
 if __name__ == '__main__':
+    freq()
     group()

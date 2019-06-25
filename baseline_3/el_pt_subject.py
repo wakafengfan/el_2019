@@ -53,8 +53,7 @@ train_data = []
 for l in tqdm(json.load((Path(data_dir) / 'train_data_me.json').open())):
     train_data.append({
         'text': l['text'].lower(),
-        'mention_data': [(x['mention'].lower(), int(x['offset']), x['kb_id'])
-                         for x in l['mention_data'] if x['kb_id'] != 'NIL'],
+        'mention_data': [(x['mention'].lower(), int(x['offset']), x['kb_id']) for x in l['mention_data']],
         'text_words': list(map(lambda x: x.lower(), l['text_words']))
     })
 
@@ -178,25 +177,18 @@ if pretrain:
     subject_model.load_state_dict(
         torch.load(Path(data_dir) / 'subject_model.pt', map_location='cpu' if not torch.cuda.is_available() else None))
 
-    # object_model = ObjectModel()
-    # object_model.load_state_dict(
-    #     torch.load(Path(data_dir) / 'object_model.pt', map_location='cpu' if not torch.cuda.is_available() else None))
 else:
     subject_model = SubjectModel.from_pretrained(pretrained_model_name_or_path=bert_model_path, cache_dir=bert_data_path)
-    # object_model = ObjectModel()
 
 subject_model.to(device)
-# object_model.to(device)
 if n_gpu > 1:
     torch.cuda.manual_seed_all(42)
 
     logger.info(f'let us use {n_gpu} gpu')
     subject_model = torch.nn.DataParallel(subject_model)
-    # object_model = torch.nn.DataParallel(object_model)
 
 # loss
 b_loss_func = nn.BCELoss(reduction='none')
-b2_loss_func = nn.BCELoss()
 
 # optim
 param_optimizer = list(subject_model.named_parameters())
@@ -216,7 +208,7 @@ optimizer = BertAdam(optimizer_grouped_parameters,
                      warmup=warmup_proportion,
                      t_total=num_train_optimization_steps)
 
-freq = json.load((Path(data_dir)/'freq_dic.json').open())
+freq = json.load((Path(data_dir)/'el_freq_dic_1.json').open())
 
 def extract_items(text_in):
     _X1 = [bert_vocab.get(c, bert_vocab.get('[UNK]')) for c in text_in]
