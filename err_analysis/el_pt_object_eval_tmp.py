@@ -210,10 +210,10 @@ n_gpu = torch.cuda.device_count()
 
 pretrain = True
 if pretrain:
-    config = BertConfig(str(Path(data_dir) / 'object_model_config.json'))
+    config = BertConfig(str(Path(data_dir) / 'object_1/object_model_config.json'))
     object_model = ObjectModel(config)
     object_model.load_state_dict(
-        torch.load(Path(data_dir) / 'object_model.pt', map_location='cpu' if not torch.cuda.is_available() else None))
+        torch.load(Path(data_dir) / 'object_1/object_model.pt', map_location='cpu' if not torch.cuda.is_available() else None))
 else:
     object_model = ObjectModel.from_pretrained(pretrained_model_name_or_path=bert_model_path, cache_dir=bert_data_path)
 
