@@ -273,7 +273,7 @@ def extract_items(d):
                 v = np.array([j[1] for j in v])
                 kbid = _IDXS[k][np.argmax(v)]
                 R.append((k[0], k[1], max(v)))
-        return list(set(R))
+        return list(R)
     else:
         return []
 
