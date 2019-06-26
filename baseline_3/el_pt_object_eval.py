@@ -274,9 +274,10 @@ object_model.eval()
 A, B, C = 1e-10, 1e-10, 1e-10
 err_dict = defaultdict(list)
 for eval_idx, d in tqdm(enumerate(dev_data[:5000])):
+    m_ = [m for m in d['mention_data'] if m[0] in kb2id]
 
     R = set(map(lambda x: (str(x[0]), str(x[1]), str(x[2])), set(extract_items(d))))
-    T = set(map(lambda x: (str(x[0]), str(x[1]), str(x[2])), set(d['mention_data'])))
+    T = set(map(lambda x: (str(x[0]), str(x[1]), str(x[2])), set(m_)))
     A += len(R & T)
     B += len(R)
     C += len(T)
