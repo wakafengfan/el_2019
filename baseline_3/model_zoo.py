@@ -74,6 +74,13 @@ class ObjectModel(BertPreTrainedModel):
         x = F.max_pool1d(output.permute(0,2,1), kernel_size=output.size(1)) # [b,h,1]
         x = x.squeeze(-1)
 
-        o = torch.sigmoid(self.linear(x))
+        # o = torch.sigmoid(self.linear(x))
+        o = self.linear(x)
 
         return o
+
+
+def focal_loss(y_p, y_t):
+    gamma = 2
+    loss = -0.5 * y_t * (1-y_p)**gamma * torch.log(y_p) - 0.5 * (1-y_t) * y_p**gamma * torch.log(1-y_p)
+    return loss.sum()

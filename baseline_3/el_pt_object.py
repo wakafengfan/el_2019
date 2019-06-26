@@ -13,7 +13,7 @@ from pytorch_pretrained_bert import BertAdam, BertConfig
 from torch.utils.data import DataLoader, TensorDataset
 from tqdm import tqdm
 
-from baseline_3.model_zoo import ObjectModel
+from baseline_3.model_zoo import ObjectModel, focal_loss
 from configuration.config import data_dir, bert_vocab_path, bert_model_path, bert_data_path
 
 min_count = 2
@@ -292,7 +292,7 @@ def extract_items(d):
         return []
 
 
-best_score = 0.879
+best_score = 0
 best_epoch = 0
 train_D = data_generator(train_data)
 for e in range(epoch_num):
@@ -310,7 +310,7 @@ for e in range(epoch_num):
         X_ids, T, X_SEGs, X_MASKs = batch
         pred_o = object_model(X_ids, X_SEGs, X_MASKs)
 
-        po_loss = b2_loss_func(pred_o, T)
+        po_loss = focal_loss(pred_o, T)
 
         if n_gpu > 1:
             po_loss = po_loss.mean()
