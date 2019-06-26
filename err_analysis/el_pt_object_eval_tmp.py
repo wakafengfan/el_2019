@@ -210,10 +210,10 @@ n_gpu = torch.cuda.device_count()
 
 pretrain = True
 if pretrain:
-    config = BertConfig(str(Path(data_dir) / 'object_1/object_model_config.json'))
+    config = BertConfig(str(Path(data_dir) / 'object_model_config.json'))
     object_model = ObjectModel(config)
     object_model.load_state_dict(
-        torch.load(Path(data_dir) / 'object_1/object_model.pt', map_location='cpu' if not torch.cuda.is_available() else None))
+        torch.load(Path(data_dir) / 'object_model.pt', map_location='cpu' if not torch.cuda.is_available() else None))
 else:
     object_model = ObjectModel.from_pretrained(pretrained_model_name_or_path=bert_model_path, cache_dir=bert_data_path)
 
@@ -290,7 +290,7 @@ for eval_idx, d in tqdm(enumerate(dev_data)):
         score_list.append(r[2])
         doc['pred'] = (str(r[0]), str(r[1]), str(r[2]))
 
-logger.info(f'max: {max(score_list)}, min:{min(score_list)}, mean:{np.mean(score_list)}')
+logger.info(f'max: {np.max(score_list)}, min:{np.min(score_list)}, mean:{np.mean(score_list)}, median:{np.median(score_list)}')
 
 
 #     R = set(map(lambda x: (str(x[0]), str(x[1]), str(x[2])), set(extract_items(d))))
