@@ -282,7 +282,7 @@ err_dict = defaultdict(list)
 for d in tqdm((Path(data_dir)/'eval_subject.json').open()):
     d = json.loads(d)
 
-    T = set(map(lambda x: (str(x[0]), str(x[1]), str(x[2])), set(d['mention_data'])))
+    T = set(map(lambda x: (str(x[0]), str(x[1]), str(x[2])), d['mention_data']))
     R = set(map(lambda x: (str(x[0]), str(x[1]), str(x[2])), set(extract_items(d))))
     A += len(R & T)
     B += len(R)

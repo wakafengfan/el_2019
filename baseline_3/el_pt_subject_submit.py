@@ -53,8 +53,7 @@ train_data = []
 for l in tqdm(json.load((Path(data_dir) / 'train_data_me.json').open())):
     train_data.append({
         'text': l['text'].lower(),
-        'mention_data': [(x['mention'].lower(), int(x['offset']), x['kb_id'])
-                         for x in l['mention_data'] if x['kb_id'] != 'NIL'],
+        'mention_data': [(x['mention'].lower(), int(x['offset']), x['kb_id']) for x in l['mention_data']],
         'text_words': list(map(lambda x: x.lower(), l['text_words']))
     })
 
@@ -278,7 +277,7 @@ subject_model.eval()
 #     output_path.write(json.dumps(doc, ensure_ascii=False) + '\n')
 
 output_path = (Path(data_dir)/'eval_subject.json').open('w')
-for l in tqdm(dev_data[:5000]):
+for l in tqdm(dev_data):
     R = extract_items(l['text'])
     l.update({
         'mention_data_pred': [(r[0], int(r[1])) for r in R]

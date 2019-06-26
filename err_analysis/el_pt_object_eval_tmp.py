@@ -54,7 +54,7 @@ train_data = []
 for l in tqdm(json.load((Path(data_dir) / 'train_data_me.json').open())):
     train_data.append({
         'text': l['text'].lower(),
-        'mention_data': [(x['mention'].lower(), int(x['offset']), x['kb_id']) for x in l['mention_data'] if x['kb_id'] == 'NIL'],
+        'mention_data': [(x['mention'].lower(), int(x['offset']), x['kb_id']) for x in l['mention_data']],
         'text_words': list(map(lambda x: x.lower(), l['text_words']))
     })
 
@@ -69,7 +69,18 @@ if not (Path(data_dir) / 'random_order_train.json').exists():
 else:
     random_order = json.load((Path(data_dir) / 'random_order_train.json').open())
 
-dev_data = [train_data[j] for i, j in enumerate(random_order) if i % 9 == mode]
+dev_data_ = [train_data[j] for i, j in enumerate(random_order) if i % 9 == mode]
+
+dev_data = []
+for l in dev_data_:
+    a = [(x[0], x[1], x[2]) for x in l['mention_data'] if x[2]=='NIL' and x[0] in kb2id]
+    if len(a) > 0:
+        dev_data.append({
+            'text': l['text'],
+            'mention_data': a,
+            'text_words': l['text_words']
+        })
+
 # train_data = [train_data[j] for i, j in enumerate(random_order) if i % 9 != mode]
 
 
