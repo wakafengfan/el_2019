@@ -309,7 +309,7 @@ for e in range(epoch_num):
         best_score = f1
         best_epoch = e
 
-        json.dump(err_dict, (Path(data_dir) / 'subject_err_log.json').open('w'), ensure_ascii=False)
+        json.dump(err_dict, (Path(data_dir) / 'err_log__[el_pt_subject.py].json').open('w'), ensure_ascii=False)
 
         s_model_to_save = subject_model.module if hasattr(subject_model, 'module') else subject_model
         torch.save(s_model_to_save.state_dict(), data_dir + '/subject_model.pt')

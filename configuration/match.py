@@ -185,6 +185,11 @@ def tst_entity_des_match():
 
 if __name__ == '__main__':
     a = '中国好声音 第一季 : 倪雅丰《我和你》120727  ..'
+    a = '【sic 假面骑士super1简易测评···带小爆照】'
+    a = '《爱用交易》如何批量评价_千牛啦'
+    a = '商业摄影接案五大法则 ╟ fotomen'
+    a = '《妈妈留给我一首歌》 - 万日月'
+    a = '死神少年》maggot_【原创小说|纯爱小说】'
     print(match2(a))
     # tst_entity_des_match()
     # tst_recall()

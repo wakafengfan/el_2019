@@ -281,12 +281,14 @@ def extract_items(d):
                     _O.extend(_o)
 
             for k, v in groupby(zip(_S, _O), key=lambda x: x[0]):
-                v = np.array([j[1] for j in v if j[1]>0.5])
-                if len(v) == 0:
-                    R.append((k[0], k[1], 'NIL'))
-                else:
-                    kbid = _IDXS[k][np.argmax(v)]
-                    R.append((k[0], k[1], kbid))
+                v = np.array([j[1] for j in v])
+                kbid = _IDXS[k][np.argmax(v)]
+                R.append((k[0], k[1], kbid))
+                # if len(v) == 0:
+                #     R.append((k[0], k[1], 'NIL'))
+                # else:
+                #     kbid = _IDXS[k][np.argmax(v)]
+                #     R.append((k[0], k[1], kbid))
         return list(set(R))
     else:
         return []
@@ -328,9 +330,10 @@ for e in range(epoch_num):
     A, B, C = 1e-10, 1e-10, 1e-10
     err_dict = defaultdict(list)
     for eval_idx, d in tqdm(enumerate(dev_data[:5000])):
+        m_ = [m for m in d['mention_data'] if m[0] in kb2id]
 
         R = set(map(lambda x: (str(x[0]), str(x[1]), str(x[2])), set(extract_items(d))))
-        T = set(map(lambda x: (str(x[0]), str(x[1]), str(x[2])), set(d['mention_data'])))
+        T = set(map(lambda x: (str(x[0]), str(x[1]), str(x[2])), set(m_)))
         A += len(R & T)
         B += len(R)
         C += len(T)
@@ -347,7 +350,7 @@ for e in range(epoch_num):
         best_score = f1
         best_epoch = e
 
-        json.dump(err_dict, (Path(data_dir) / 'object_err_log.json').open('w'), ensure_ascii=False, indent=4)
+        json.dump(err_dict, (Path(data_dir) / 'err_log__[el_pt_object.py].json').open('w'), ensure_ascii=False, indent=4)
 
         o_model_to_save = object_model.module if hasattr(object_model, 'module') else object_model
 

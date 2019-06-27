@@ -80,6 +80,6 @@ class ObjectModel(BertPreTrainedModel):
 
 
 def focal_loss(y_p, y_t):
-    gamma = 2
-    loss = -0.5 * y_t * (1-y_p)**gamma * torch.log(y_p) - 0.5 * (1-y_t) * y_p**gamma * torch.log(1-y_p)
+    gamma = 0.2
+    loss = -y_t * (1-y_p)**gamma * torch.log(y_p) - (1-y_t) * y_p**gamma * torch.log(1-y_p)
     return loss.sum()

@@ -289,7 +289,7 @@ for eval_idx, d in tqdm(enumerate(dev_data[:5000])):
     if eval_idx % 100 == 0:
         logger.info(f'eval_idx:{eval_idx} - precision:{A/B:.5f} - recall:{A/C:.5f} - f1:{2 * A / (B + C):.5f}')
 
-json.dump(err_dict, (Path(data_dir) / 'object_err_log.json').open('w'), ensure_ascii=False, indent=4)
+json.dump(err_dict, (Path(data_dir) / 'err_log__[el_pt_object_eval.py].json').open('w'), ensure_ascii=False, indent=4)
 
 f1, precision, recall = 2 * A / (B + C), A / B, A / C
 logger.info(f'precision:{precision:.4f}-recall:{recall:.4f}-f1:{f1:.4f}')
