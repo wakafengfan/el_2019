@@ -277,8 +277,11 @@ subject_model.eval()
 #     output_path.write(json.dumps(doc, ensure_ascii=False) + '\n')
 
 output_path = (Path(data_dir)/'eval_subject.json').open('w')
-for l in tqdm(dev_data):
-    R = extract_items(l['text'])
+for l in tqdm(dev_data[:5000]):
+    m_ = [m for m in l['mention_data'] if m[0] in kb2id]
+    R = set(extract_items(l['text']))
+    T = set(map(lambda x: (str(x[0]), str(x[1])), m_))
+
     l.update({
         'mention_data_pred': [(r[0], int(r[1])) for r in R]
     })

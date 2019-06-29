@@ -281,8 +281,10 @@ err_dict = defaultdict(list)
 
 for d in tqdm((Path(data_dir)/'eval_subject.json').open()):
     d = json.loads(d)
+    m1 = [m for m in d['mention_data'] if m[0] in kb2id]
 
-    T = set(map(lambda x: (str(x[0]), str(x[1]), str(x[2])), d['mention_data']))
+    T = set(map(lambda x: (str(x[0]), str(x[1]), str(x[2])), m1))
+    T2 = set(map(lambda x: (str(x[0]), str(x[1]), str(x[2])), d['mention_data']))
     R = set(map(lambda x: (str(x[0]), str(x[1]), str(x[2])), set(extract_items(d))))
     A += len(R & T)
     B += len(R)
