@@ -19,7 +19,7 @@ from configuration.config import data_dir, bert_vocab_path, bert_model_path, ber
 min_count = 2
 mode = 0
 hidden_size = 768
-epoch_num = 10
+epoch_num = 15
 batch_size = 32
 
 logging.basicConfig(format='%(asctime)s - %(levelname)s - %(name)s - %(message)s',
@@ -214,7 +214,8 @@ if n_gpu > 1:
     object_model = torch.nn.DataParallel(object_model)
 
 # loss
-b2_loss_func = nn.BCELoss()
+# b2_loss_func = nn.BCELoss()
+b2_loss_func = nn.MSELoss()
 
 # optim
 param_optimizer = list(object_model.named_parameters())
@@ -254,8 +255,8 @@ def extract_items(d):
         for _X1 in _subjects:
             _IDXS[_X1] = kb2id.get(_X1[0], [])
             for idx, i in enumerate(_IDXS[_X1]):
-                if idx > 15:  # 只取15个匹配
-                    break
+                # if idx > 15:  # 只取15个匹配
+                #     break
                 _x2 = id2kb[i]['subject_desc']
                 _x2 = [bert_vocab.get(c, bert_vocab.get('[UNK]')) for c in _x2]
 
@@ -283,7 +284,7 @@ def extract_items(d):
             for k, v in groupby(zip(_S, _O), key=lambda x: x[0]):
                 v = np.array([j[1] for j in v])
                 kbid = _IDXS[k][np.argmax(v)]
-                R.append((k[0], k[1], kbid))
+                R.append((k[0], k[1], kbid, np.max(v)))
                 # if len(v) == 0:
                 #     R.append((k[0], k[1], 'NIL'))
                 # else:
@@ -312,7 +313,7 @@ for e in range(epoch_num):
         X_ids, T, X_SEGs, X_MASKs = batch
         pred_o = object_model(X_ids, X_SEGs, X_MASKs)
 
-        po_loss = focal_loss(pred_o, T)
+        po_loss = b2_loss_func(pred_o, T)
 
         if n_gpu > 1:
             po_loss = po_loss.mean()
@@ -332,7 +333,9 @@ for e in range(epoch_num):
     for eval_idx, d in tqdm(enumerate(dev_data[:5000])):
         m_ = [m for m in d['mention_data'] if m[0] in kb2id]
 
-        R = set(map(lambda x: (str(x[0]), str(x[1]), str(x[2])), set(extract_items(d))))
+        p = set(map(lambda x: (str(x[0]), str(x[1]), str(x[2]), f'{x[3]:.5f}'), extract_items(d)))
+
+        R = set(map(lambda x: (str(x[0]), str(x[1]), str(x[2])), p))
         T = set(map(lambda x: (str(x[0]), str(x[1]), str(x[2])), set(m_)))
         A += len(R & T)
         B += len(R)
@@ -341,7 +344,7 @@ for e in range(epoch_num):
         if R != T:
             err_dict['err'].append({'text': d['text'],
                                     'mention_data': list(T),
-                                    'predict': list(R)})
+                                    'predict': list(p)})
         if eval_idx % 100 == 0:
             logger.info(f'eval_idx:{eval_idx} - precision:{A/B:.5f} - recall:{A/C:.5f} - f1:{2 * A / (B + C):.5f}')
 

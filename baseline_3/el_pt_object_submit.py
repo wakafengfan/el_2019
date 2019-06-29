@@ -9,12 +9,12 @@ from random import choice
 import numpy as np
 import torch
 import torch.nn as nn
-from pytorch_pretrained_bert import BertAdam, BertConfig
+from pytorch_pretrained_bert import BertConfig
 from torch.utils.data import DataLoader, TensorDataset
 from tqdm import tqdm
 
 from baseline_3.model_zoo import ObjectModel
-from configuration.config import data_dir, bert_vocab_path, bert_model_path, bert_data_path
+from configuration.config import data_dir, bert_vocab_path
 
 min_count = 2
 mode = 0
