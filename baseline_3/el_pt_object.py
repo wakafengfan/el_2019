@@ -19,7 +19,7 @@ from configuration.config import data_dir, bert_vocab_path, bert_model_path, ber
 min_count = 2
 mode = 0
 hidden_size = 768
-epoch_num = 15
+epoch_num = 10
 batch_size = 32
 
 logging.basicConfig(format='%(asctime)s - %(levelname)s - %(name)s - %(message)s',
@@ -41,7 +41,7 @@ for l in (Path(data_dir) / 'kb_data').open():
         else:
             subject_desc += f'{i["predicate"]}:{i["object"]}' + ' '
 
-    subject_desc = ' '.join(subject_alias)[:50] + ' ' + subject_desc[:100].lower()
+    subject_desc = ' '.join(subject_alias)[:50] + ' ' + subject_desc[:200].lower()
     if subject_desc:
         id2kb[subject_id] = {'subject_alias': subject_alias, 'subject_desc': subject_desc}
 
@@ -283,13 +283,11 @@ def extract_items(d):
 
             for k, v in groupby(zip(_S, _O), key=lambda x: x[0]):
                 v = np.array([j[1] for j in v])
-                kbid = _IDXS[k][np.argmax(v)]
-                R.append((k[0], k[1], kbid, np.max(v)))
-                # if len(v) == 0:
-                #     R.append((k[0], k[1], 'NIL'))
-                # else:
-                #     kbid = _IDXS[k][np.argmax(v)]
-                #     R.append((k[0], k[1], kbid))
+                if np.max(v) < 0.2:
+                    R.append((k[0], k[1], 'NIL', np.max(v)))
+                else:
+                    kbid = _IDXS[k][np.argmax(v)]
+                    R.append((k[0], k[1], kbid, np.max(v)))
         return list(set(R))
     else:
         return []
