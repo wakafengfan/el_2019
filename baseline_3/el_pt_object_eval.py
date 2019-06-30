@@ -35,14 +35,13 @@ for l in (Path(data_dir) / 'kb_data').open():
     subject_alias = [sa.lower() for sa in subject_alias]
     subject_desc = ''
     for i in _['data']:
-        if '摘要' in i['predicate']:
-            subject_desc += i['object']
-        elif '标签' in i['predicate']:
-            subject_desc = i['object'] + subject_desc
-        else:
-            subject_desc += f'{i["predicate"]}:{i["object"]}' + ' '
+        # if '摘要' in i['predicate']:
+        #     subject_desc = i['object']
+        #     break
+        # else:
+        subject_desc += f'{i["predicate"]}:{i["object"]}' + ' '
 
-    subject_desc = ' '.join(subject_alias)[:50] + ' ' + subject_desc[:100].lower() + ' ' + subject_desc[-100:].lower()
+    subject_desc = ' '.join(subject_alias)[:50] + ' ' + subject_desc[:200].lower()
     if subject_desc:
         id2kb[subject_id] = {'subject_alias': subject_alias, 'subject_desc': subject_desc}
 
@@ -200,10 +199,10 @@ n_gpu = torch.cuda.device_count()
 
 pretrain = True
 if pretrain:
-    config = BertConfig(str(Path(data_dir) / 'object_1/object_model_config.json'))
+    config = BertConfig(str(Path(data_dir) / 'object_3/object_model_config.json'))
     object_model = ObjectModel(config)
     object_model.load_state_dict(
-        torch.load(Path(data_dir) / 'object_1/object_model.pt', map_location='cpu' if not torch.cuda.is_available() else None))
+        torch.load(Path(data_dir) / 'object_3/object_model.pt', map_location='cpu' if not torch.cuda.is_available() else None))
 else:
     object_model = ObjectModel.from_pretrained(pretrained_model_name_or_path=bert_model_path, cache_dir=bert_data_path)
 
@@ -261,7 +260,7 @@ def extract_items(d):
 
             for k, v in groupby(zip(_S, _O), key=lambda x: x[0]):
                 v = np.array([j[1] for j in v])
-                if np.max(v) < 0.1:
+                if np.max(v) < 0.2:
                     R.append((k[0], k[1], 'NIL', np.max(v)))
                 else:
                     kbid = _IDXS[k][np.argmax(v)]
