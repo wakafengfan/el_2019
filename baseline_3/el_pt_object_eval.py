@@ -36,12 +36,13 @@ for l in (Path(data_dir) / 'kb_data').open():
     subject_desc = ''
     for i in _['data']:
         if '摘要' in i['predicate']:
-            subject_desc = i['object']
-            break
+            subject_desc += i['object']
+        elif '标签' in i['predicate']:
+            subject_desc = i['object'] + subject_desc
         else:
             subject_desc += f'{i["predicate"]}:{i["object"]}' + ' '
 
-    subject_desc = ' '.join(subject_alias)[:50] + ' ' + subject_desc[:100].lower()
+    subject_desc = ' '.join(subject_alias)[:50] + ' ' + subject_desc[:100].lower() + ' ' + subject_desc[-100:].lower()
     if subject_desc:
         id2kb[subject_id] = {'subject_alias': subject_alias, 'subject_desc': subject_desc}
 
@@ -260,7 +261,7 @@ def extract_items(d):
 
             for k, v in groupby(zip(_S, _O), key=lambda x: x[0]):
                 v = np.array([j[1] for j in v])
-                if np.max(v) < 0.2:
+                if np.max(v) < 0.1:
                     R.append((k[0], k[1], 'NIL', np.max(v)))
                 else:
                     kbid = _IDXS[k][np.argmax(v)]
