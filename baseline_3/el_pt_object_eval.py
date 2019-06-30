@@ -232,8 +232,8 @@ def extract_items(d):
         for _X1 in _subjects:
             _IDXS[_X1] = kb2id.get(_X1[0], [])
             for idx, i in enumerate(_IDXS[_X1]):
-                if idx > 15:  # 只取15个匹配
-                    break
+                # if idx > 15:  # 只取15个匹配
+                #     break
                 _x2 = id2kb[i]['subject_desc']
                 _x2 = [bert_vocab.get(c, bert_vocab.get('[UNK]')) for c in _x2]
 
@@ -259,12 +259,9 @@ def extract_items(d):
                     _O.extend(_o)
 
             for k, v in groupby(zip(_S, _O), key=lambda x: x[0]):
-                v = np.array([j[1] for j in v if j[1]>0.5])
-                if len(v) == 0:
-                    R.append((k[0], k[1], 'NIL'))
-                else:
-                    kbid = _IDXS[k][np.argmax(v)]
-                    R.append((k[0], k[1], kbid))
+                v = np.array([j[1] for j in v])
+                kbid = _IDXS[k][np.argmax(v)]
+                R.append((k[0], k[1], kbid, np.max(v)))
         return list(set(R))
     else:
         return []
@@ -275,8 +272,9 @@ A, B, C = 1e-10, 1e-10, 1e-10
 err_dict = defaultdict(list)
 for eval_idx, d in tqdm(enumerate(dev_data[:5000])):
     m_ = [m for m in d['mention_data'] if m[0] in kb2id]
+    p = set(map(lambda x: (str(x[0]), str(x[1]), str(x[2]), f'{x[3]:.5f}'), extract_items(d)))
 
-    R = set(map(lambda x: (str(x[0]), str(x[1]), str(x[2])), set(extract_items(d))))
+    R = set(map(lambda x: (str(x[0]), str(x[1]), str(x[2])), p))
     T = set(map(lambda x: (str(x[0]), str(x[1]), str(x[2])), set(m_)))
     A += len(R & T)
     B += len(R)
@@ -285,7 +283,7 @@ for eval_idx, d in tqdm(enumerate(dev_data[:5000])):
     if R != T:
         err_dict['err'].append({'text': d['text'],
                                 'mention_data': list(T),
-                                'predict': list(R)})
+                                'predict': list(p)})
     if eval_idx % 100 == 0:
         logger.info(f'eval_idx:{eval_idx} - precision:{A/B:.5f} - recall:{A/C:.5f} - f1:{2 * A / (B + C):.5f}')
 
