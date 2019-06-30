@@ -34,14 +34,23 @@ for l in (Path(data_dir) / 'kb_data').open():
     subject_alias = list(set([_['subject']] + _.get('alias', [])))
     subject_alias = [sa.lower() for sa in subject_alias]
     subject_desc = ''
+    subject_desc_all = ''
     for i in _['data']:
-        if '摘要' in i['predicate']:
-            subject_desc = i['object']
-            break
+        # if '摘要' in i['predicate']:
+        #     subject_desc = i['object']
+        #     break
+        # else:
+        #     subject_desc += f'{i["predicate"]}:{i["object"]}' + ' '
+        if i['predicate'] in ['摘要','标签','义项描述']:
+            subject_desc += i['object'] + ' '
+        subject_desc_all += f'{i["predicate"]}:{i["object"]}' + ' '
+    if subject_desc == '':
+        subject_desc = ' '.join(subject_alias)[:50] + ' ' + subject_desc_all[:200].lower()
+    else:
+        if len(subject_desc) > 200:
+            subject_desc = ' '.join(subject_alias)[:50] + ' ' + subject_desc[:100].lower()+ ' ' + subject_desc[-100:].lower()
         else:
-            subject_desc += f'{i["predicate"]}:{i["object"]}' + ' '
-
-    subject_desc = ' '.join(subject_alias)[:50] + ' ' + subject_desc[:200].lower()
+            subject_desc = ' '.join(subject_alias)[:50] + ' ' + subject_desc[:200].lower()
     if subject_desc:
         id2kb[subject_id] = {'subject_alias': subject_alias, 'subject_desc': subject_desc}
 
@@ -235,8 +244,6 @@ optimizer = BertAdam(optimizer_grouped_parameters,
                      warmup=warmup_proportion,
                      t_total=num_train_optimization_steps)
 
-freq = json.load((Path(data_dir)/'el_freq_dic_1.json').open())
-
 def extract_items(d):
     _subjects = []
     text = d['text']
@@ -283,11 +290,8 @@ def extract_items(d):
 
             for k, v in groupby(zip(_S, _O), key=lambda x: x[0]):
                 v = np.array([j[1] for j in v])
-                if np.max(v) < 0.2:
-                    R.append((k[0], k[1], 'NIL', np.max(v)))
-                else:
-                    kbid = _IDXS[k][np.argmax(v)]
-                    R.append((k[0], k[1], kbid, np.max(v)))
+                kbid = _IDXS[k][np.argmax(v)]
+                R.append((k[0], k[1], kbid, np.max(v)))
         return list(set(R))
     else:
         return []
