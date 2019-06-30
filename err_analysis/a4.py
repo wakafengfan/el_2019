@@ -3,7 +3,7 @@ from pathlib import Path
 import numpy as np
 from configuration.config import data_dir
 
-err = json.load((Path(data_dir)/'err_log/err_log__[el_pt_object.py].json').open())['err']
+err = json.load((Path(data_dir)/'err_log/err_log__[el_pt_object_eval.py].json').open())['err']
 nil_list, wrong_list, right_list = [],[],[]
 for e in err:
     M = sorted(e['mention_data'], key=lambda x:x[0])

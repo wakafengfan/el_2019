@@ -215,7 +215,7 @@ def extract_items(d):
     _subjects = []
     text = d['text']
     _x1 = [bert_vocab.get(c, bert_vocab.get('[UNK]')) for c in text]
-    mention_data = d['mention_data_pred']
+    mention_data = d['mention_data']
 
     if mention_data:
         for m in mention_data:
@@ -229,8 +229,8 @@ def extract_items(d):
         for _X1 in _subjects:
             _IDXS[_X1] = kb2id.get(_X1[0], [])
             for idx, i in enumerate(_IDXS[_X1]):
-                if idx > 15:  # 只取15个匹配
-                    break
+                # if idx > 15:  # 只取15个匹配
+                #     break
                 _x2 = id2kb[i]['subject_desc']
                 _x2 = [bert_vocab.get(c, bert_vocab.get('[UNK]')) for c in _x2]
 
@@ -258,42 +258,45 @@ def extract_items(d):
             for k, v in groupby(zip(_S, _O), key=lambda x: x[0]):
                 v = np.array([j[1] for j in v])
                 kbid = _IDXS[k][np.argmax(v)]
-                R.append((k[0], k[1], kbid))
+                if np.max(v) < 0.2:
+                    R.append((k[0], k[1], 'NIL'))
+                else:
+                    R.append((k[0], k[1], kbid))
         return list(set(R))
     else:
         return []
 
 
 object_model.eval()
-# output_path = (Path(data_dir)/'submission_object.json').open('w')
-# cnt = 0
-# for l in tqdm((Path(data_dir)/'submission_subject.json').open()):
-#     cnt += 1
-#     doc = json.loads(l)
-#     R = extract_items(doc)
-#     doc.update({
-#         'mention_data': [{'kb_id':str(r[2]), 'mention':str(r[0]), 'offset':str(r[1])} for r in R]
-#     })
-#     output_path.write(json.dumps(doc, ensure_ascii=False) + '\n')
+output_path = (Path(data_dir)/'submission_object.json').open('w')
+cnt = 0
+for l in tqdm((Path(data_dir)/'submission_subject.json').open()):
+    cnt += 1
+    doc = json.loads(l)
+    R = extract_items(doc)
+    doc.update({
+        'mention_data': [{'kb_id':str(r[2]), 'mention':str(r[0]), 'offset':str(r[1])} for r in R]
+    })
+    output_path.write(json.dumps(doc, ensure_ascii=False) + '\n')
 
-A, B, C = 1e-10, 1e-10, 1e-10
-err_dict = defaultdict(list)
-
-for d in tqdm((Path(data_dir)/'eval_subject.json').open()):
-    d = json.loads(d)
-    m1 = [m for m in d['mention_data'] if m[0] in kb2id]
-
-    T = set(map(lambda x: (str(x[0]), str(x[1]), str(x[2])), m1))
-    T2 = set(map(lambda x: (str(x[0]), str(x[1]), str(x[2])), d['mention_data']))
-    R = set(map(lambda x: (str(x[0]), str(x[1]), str(x[2])), set(extract_items(d))))
-    A += len(R & T)
-    B += len(R)
-    C += len(T)
-
-    if R != T:
-        err_dict['err'].append({'text': d['text'],
-                                'mention_data': list(T),
-                                'predict': list(R)})
-f1, precision, recall = 2 * A / (B + C), A / B, A / C
-
-logger.info(f'precision:{precision:.4f}-recall:{recall:.4f}-f1:{f1:.4f}')
+# A, B, C = 1e-10, 1e-10, 1e-10
+# err_dict = defaultdict(list)
+#
+# for d in tqdm((Path(data_dir)/'eval_subject.json').open()):
+#     d = json.loads(d)
+#     m1 = [m for m in d['mention_data'] if m[0] in kb2id]
+#
+#     T = set(map(lambda x: (str(x[0]), str(x[1]), str(x[2])), m1))
+#     T2 = set(map(lambda x: (str(x[0]), str(x[1]), str(x[2])), d['mention_data']))
+#     R = set(map(lambda x: (str(x[0]), str(x[1]), str(x[2])), set(extract_items(d))))
+#     A += len(R & T)
+#     B += len(R)
+#     C += len(T)
+#
+#     if R != T:
+#         err_dict['err'].append({'text': d['text'],
+#                                 'mention_data': list(T),
+#                                 'predict': list(R)})
+# f1, precision, recall = 2 * A / (B + C), A / B, A / C
+#
+# logger.info(f'precision:{precision:.4f}-recall:{recall:.4f}-f1:{f1:.4f}')
