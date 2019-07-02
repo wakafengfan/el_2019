@@ -177,37 +177,13 @@ subject_model.load_state_dict(
 
 
 subject_model.to(device)
-# object_model.to(device)
 if n_gpu > 1:
     torch.cuda.manual_seed_all(42)
 
     logger.info(f'let us use {n_gpu} gpu')
     subject_model = torch.nn.DataParallel(subject_model)
-    # object_model = torch.nn.DataParallel(object_model)
 
-# loss
-b_loss_func = nn.BCELoss(reduction='none')
-b2_loss_func = nn.BCELoss()
-
-# optim
-param_optimizer = list(subject_model.named_parameters())
-no_decay = ['bias', 'LayerNorm.bias', 'LayerNorm.weight']
-optimizer_grouped_parameters = [
-    {'params': [p for n, p in param_optimizer if not any(nd in n for nd in no_decay)], 'weight_decay': 0.01},
-    {'params': [p for n, p in param_optimizer if any(nd in n for nd in no_decay)], 'weight_decay': 0.0}
-]
-
-learning_rate = 5e-5
-warmup_proportion = 0.1
-num_train_optimization_steps = len(train_data) // batch_size * epoch_num
-logger.info(f'num_train_optimization: {num_train_optimization_steps}')
-
-optimizer = BertAdam(optimizer_grouped_parameters,
-                     lr=learning_rate,
-                     warmup=warmup_proportion,
-                     t_total=num_train_optimization_steps)
-
-freq = json.load((Path(data_dir)/'freq_dic.json').open())
+freq = json.load((Path(data_dir)/'el_freq_dic_1.json').open())
 group = json.load((Path(data_dir)/ 'el_group_word.json').open())
 
 def extract_items(text_in):
@@ -262,30 +238,27 @@ def extract_items(text_in):
     return list(set(_subjects_new))
 
 
-
 subject_model.eval()
-# output_path = (Path(data_dir)/'submission_subject.json').open('w')
-# cnt = 0
-# for l in tqdm((Path(data_dir)/'develop.json').open()):
-#     cnt += 1
-#     doc = json.loads(l)
-#     text = doc['text']
-#     R = extract_items(text)
-#     doc.update({
-#         'mention_data': [(r[0], int(r[1])) for r in R]
-#     })
-#     output_path.write(json.dumps(doc, ensure_ascii=False) + '\n')
-
-output_path = (Path(data_dir)/'eval_subject.json').open('w')
-for l in tqdm(dev_data[:5000]):
-    m_ = [m for m in l['mention_data'] if m[0] in kb2id]
-    R = set(extract_items(l['text']))
-    T = set(map(lambda x: (str(x[0]), str(x[1])), m_))
-
-    l.update({
-        'mention_data_pred': [(r[0], int(r[1])) for r in R]
+output_path = (Path(data_dir)/'submission_subject.json').open('w')
+for l in tqdm((Path(data_dir)/'develop.json').open()):
+    doc = json.loads(l)
+    text = doc['text']
+    R = extract_items(text)
+    doc.update({
+        'mention_data': [(r[0], int(r[1])) for r in R]
     })
-    output_path.write(json.dumps(l, ensure_ascii=False) + '\n')
+    output_path.write(json.dumps(doc, ensure_ascii=False) + '\n')
+
+# output_path = (Path(data_dir)/'eval_subject.json').open('w')
+# for l in tqdm(dev_data[:5000]):
+#     m_ = [m for m in l['mention_data'] if m[0] in kb2id]
+#     R = set(extract_items(l['text']))
+#     T = set(map(lambda x: (str(x[0]), str(x[1])), m_))
+#
+#     l.update({
+#         'mention_data_pred': [(r[0], int(r[1])) for r in R]
+#     })
+#     output_path.write(json.dumps(l, ensure_ascii=False) + '\n')
 
 
 

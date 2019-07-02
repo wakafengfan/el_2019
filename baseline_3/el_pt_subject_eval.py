@@ -8,7 +8,7 @@ from random import choice
 import numpy as np
 import torch
 import torch.nn as nn
-from pytorch_pretrained_bert import BertAdam, BertConfig
+from pytorch_pretrained_bert import BertConfig
 from tqdm import tqdm
 
 from baseline_3.model_zoo import SubjectModel
@@ -53,8 +53,7 @@ train_data = []
 for l in tqdm(json.load((Path(data_dir) / 'train_data_me.json').open())):
     train_data.append({
         'text': l['text'].lower(),
-        'mention_data': [(x['mention'].lower(), int(x['offset']), x['kb_id'])
-                         for x in l['mention_data'] if x['kb_id'] != 'NIL'],
+        'mention_data': [(x['mention'].lower(), int(x['offset']), x['kb_id']) for x in l['mention_data']],
         'text_words': list(map(lambda x: x.lower(), l['text_words']))
     })
 
@@ -171,15 +170,11 @@ class data_generator:
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 n_gpu = torch.cuda.device_count()
 
-pretrain = True
-if pretrain:
-    config = BertConfig(str(Path(data_dir) / 'subject_1/subject_model_config.json'))
-    subject_model = SubjectModel(config)
-    subject_model.load_state_dict(
+config = BertConfig(str(Path(data_dir) / 'subject_1/subject_model_config.json'))
+subject_model = SubjectModel(config)
+subject_model.load_state_dict(
         torch.load(Path(data_dir) / 'subject_1/subject_model.pt', map_location='cpu' if not torch.cuda.is_available() else None))
 
-else:
-    subject_model = SubjectModel.from_pretrained(pretrained_model_name_or_path=bert_model_path, cache_dir=bert_data_path)
 
 subject_model.to(device)
 if n_gpu > 1:
@@ -247,6 +242,8 @@ subject_model.eval()
 
 A, B, C = 1e-10, 1e-10, 1e-10
 err_dict = defaultdict(list)
+output_path = (Path(data_dir)/'eval_subject.json').open('w')
+
 for eval_idx, d in tqdm(enumerate(dev_data)):
     M = [m for m in d['mention_data'] if m[0] in kb2id]
 
@@ -263,6 +260,14 @@ for eval_idx, d in tqdm(enumerate(dev_data)):
     if eval_idx % 100 == 0:
         logger.info(f'eval_idx:{eval_idx} - precision:{A/B:.5f} - recall:{A/C:.5f} - f1:{2 * A / (B + C):.5f}')
 
+    d.update({
+        'mention_data_pred': [(r[0], int(r[1])) for r in R]
+    })
+    output_path.write(json.dumps(d, ensure_ascii=False) + '\n')
+
+
 f1, precision, recall = 2 * A / (B + C), A / B, A / C
-json.dump(err_dict, (Path(data_dir) / 'err_log_[el_pt_subject_eval.py].json').open('w'), ensure_ascii=False)
 logger.info(f'precision:{precision:.4f}-recall:{recall:.4f}-f1:{f1:.4f}')
+
+json.dump(err_dict, (Path(data_dir) / 'err_log_[el_pt_subject_eval.py].json').open('w'), ensure_ascii=False)
+
