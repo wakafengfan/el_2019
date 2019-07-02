@@ -279,6 +279,7 @@ for l in tqdm((Path(data_dir)/'submission_subject.json').open()):
     cnt += 1
     doc = json.loads(l)
     R = extract_items(doc)
+    R = sorted(R, key=lambda x:x[1])
     doc.update({
         'mention_data': [{'kb_id':str(r[2]), 'mention':str(r[0]), 'offset':str(r[1])} for r in R]
     })
