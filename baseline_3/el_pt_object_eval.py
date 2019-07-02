@@ -206,10 +206,10 @@ class data_generator:
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 n_gpu = torch.cuda.device_count()
 
-config = BertConfig(str(Path(data_dir) / 'object_3/object_model_config.json'))
+config = BertConfig(str(Path(data_dir) / 'object_model_config.json'))
 object_model = ObjectModel(config)
 object_model.load_state_dict(
-    torch.load(Path(data_dir) / 'object_3/object_model.pt', map_location='cpu' if not torch.cuda.is_available() else None))
+    torch.load(Path(data_dir) / 'object_model.pt', map_location='cpu' if not torch.cuda.is_available() else None))
 
 object_model.to(device)
 if n_gpu > 1:
@@ -280,7 +280,7 @@ err_dict = defaultdict(list)
 for eval_idx, d in tqdm(enumerate((Path(data_dir)/'eval_subject.json').open())):
     d = json.loads(d)
 # for eval_idx, d in tqdm(enumerate(dev_data[:5000])):
-    M = [m for m in d['mention_data'] if m[0] in kb2id]
+    M = [tuple(m) for m in d['mention_data'] if m[0] in kb2id]
     p = set(map(lambda x: (str(x[0]), str(x[1]), str(x[2]), f'{x[3]:.5f}'), extract_items(d)))
 
     R = set(map(lambda x: (str(x[0]), str(x[1]), str(x[2])), p))
