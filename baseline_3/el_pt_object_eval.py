@@ -9,7 +9,7 @@ from random import choice
 import numpy as np
 import torch
 import torch.nn as nn
-from pytorch_pretrained_bert import BertAdam, BertConfig
+from pytorch_pretrained_bert import BertConfig
 from torch.utils.data import DataLoader, TensorDataset
 from tqdm import tqdm
 
@@ -34,14 +34,23 @@ for l in (Path(data_dir) / 'kb_data').open():
     subject_alias = list(set([_['subject']] + _.get('alias', [])))
     subject_alias = [sa.lower() for sa in subject_alias]
     subject_desc = ''
+    subject_desc_all = ''
     for i in _['data']:
         # if '摘要' in i['predicate']:
         #     subject_desc = i['object']
         #     break
         # else:
-        subject_desc += f'{i["predicate"]}:{i["object"]}' + ' '
-
-    subject_desc = ' '.join(subject_alias)[:50] + ' ' + subject_desc[:200].lower()
+        # subject_desc += f'{i["predicate"]}:{i["object"]}' + ' '
+        if i['predicate'] in ['摘要', '标签', '义项描述']:
+            subject_desc += i['object'] + ' '
+        subject_desc_all += f'{i["predicate"]}:{i["object"]}' + ' '
+    if subject_desc == '':
+        subject_desc = ' '.join(subject_alias)[:50] + ' ' + subject_desc_all[:200].lower()
+    else:
+        if len(subject_desc) > 200:
+            subject_desc = ' '.join(subject_alias)[:50] + ' ' + subject_desc[:100].lower() + ' ' + subject_desc[-100:].lower()
+        else:
+            subject_desc = ' '.join(subject_alias)[:50] + ' ' + subject_desc[:200].lower()
     if subject_desc:
         id2kb[subject_id] = {'subject_alias': subject_alias, 'subject_desc': subject_desc}
 
@@ -197,14 +206,10 @@ class data_generator:
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 n_gpu = torch.cuda.device_count()
 
-pretrain = True
-if pretrain:
-    config = BertConfig(str(Path(data_dir) / 'object_3/object_model_config.json'))
-    object_model = ObjectModel(config)
-    object_model.load_state_dict(
-        torch.load(Path(data_dir) / 'object_3/object_model.pt', map_location='cpu' if not torch.cuda.is_available() else None))
-else:
-    object_model = ObjectModel.from_pretrained(pretrained_model_name_or_path=bert_model_path, cache_dir=bert_data_path)
+config = BertConfig(str(Path(data_dir) / 'object_3/object_model_config.json'))
+object_model = ObjectModel(config)
+object_model.load_state_dict(
+    torch.load(Path(data_dir) / 'object_3/object_model.pt', map_location='cpu' if not torch.cuda.is_available() else None))
 
 object_model.to(device)
 if n_gpu > 1:
@@ -218,7 +223,7 @@ def extract_items(d):
     _subjects = []
     text = d['text']
     _x1 = [bert_vocab.get(c, bert_vocab.get('[UNK]')) for c in text]
-    mention_data = d['mention_data']
+    mention_data = d['mention_data_pred']
 
     if mention_data:
         for m in mention_data:
@@ -260,11 +265,8 @@ def extract_items(d):
 
             for k, v in groupby(zip(_S, _O), key=lambda x: x[0]):
                 v = np.array([j[1] for j in v])
-                if np.max(v) < 0.2:
-                    R.append((k[0], k[1], 'NIL', np.max(v)))
-                else:
-                    kbid = _IDXS[k][np.argmax(v)]
-                    R.append((k[0], k[1], kbid, np.max(v)))
+                kbid = _IDXS[k][np.argmax(v)]
+                R.append((k[0], k[1], kbid, np.max(v)))
         return list(set(R))
     else:
         return []
@@ -273,12 +275,16 @@ def extract_items(d):
 object_model.eval()
 A, B, C = 1e-10, 1e-10, 1e-10
 err_dict = defaultdict(list)
-for eval_idx, d in tqdm(enumerate(dev_data[:5000])):
-    m_ = [m for m in d['mention_data'] if m[0] in kb2id]
+
+
+for eval_idx, d in tqdm(enumerate((Path(data_dir)/'eval_subject.json').open())):
+    d = json.loads(d)
+# for eval_idx, d in tqdm(enumerate(dev_data[:5000])):
+    M = [m for m in d['mention_data'] if m[0] in kb2id]
     p = set(map(lambda x: (str(x[0]), str(x[1]), str(x[2]), f'{x[3]:.5f}'), extract_items(d)))
 
     R = set(map(lambda x: (str(x[0]), str(x[1]), str(x[2])), p))
-    T = set(map(lambda x: (str(x[0]), str(x[1]), str(x[2])), set(m_)))
+    T = set(map(lambda x: (str(x[0]), str(x[1]), str(x[2])), set(M)))
     A += len(R & T)
     B += len(R)
     C += len(T)

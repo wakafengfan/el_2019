@@ -34,14 +34,23 @@ for l in (Path(data_dir) / 'kb_data').open():
     subject_alias = list(set([_['subject']] + _.get('alias', [])))
     subject_alias = [sa.lower() for sa in subject_alias]
     subject_desc = ''
+    subject_desc_all = ''
     for i in _['data']:
-        if '摘要' in i['predicate']:
-            subject_desc = i['object']
-            break
+        # if '摘要' in i['predicate']:
+        #     subject_desc = i['object']
+        #     break
+        # else:
+        #     subject_desc += f'{i["predicate"]}:{i["object"]}' + ' '
+        if i['predicate'] in ['摘要', '标签', '义项描述']:
+            subject_desc += i['object'] + ' '
+        subject_desc_all += f'{i["predicate"]}:{i["object"]}' + ' '
+    if subject_desc == '':
+        subject_desc = ' '.join(subject_alias)[:50] + ' ' + subject_desc_all[:200].lower()
+    else:
+        if len(subject_desc) > 200:
+            subject_desc = ' '.join(subject_alias)[:50] + ' ' + subject_desc[:100].lower() + ' ' + subject_desc[-100:].lower()
         else:
-            subject_desc += f'{i["predicate"]}:{i["object"]}' + ' '
-
-    subject_desc = ' '.join(subject_alias)[:50] + ' ' + subject_desc[:100].lower()
+            subject_desc = ' '.join(subject_alias)[:50] + ' ' + subject_desc[:200].lower()
     if subject_desc:
         id2kb[subject_id] = {'subject_alias': subject_alias, 'subject_desc': subject_desc}
 
@@ -54,8 +63,7 @@ train_data = []
 for l in tqdm(json.load((Path(data_dir) / 'train_data_me.json').open())):
     train_data.append({
         'text': l['text'].lower(),
-        'mention_data': [(x['mention'].lower(), int(x['offset']), x['kb_id'])
-                         for x in l['mention_data'] if x['kb_id'] != 'NIL'],
+        'mention_data': [(x['mention'].lower(), int(x['offset']), x['kb_id']) for x in l['mention_data']],
         'text_words': list(map(lambda x: x.lower(), l['text_words']))
     })
 
@@ -258,10 +266,7 @@ def extract_items(d):
             for k, v in groupby(zip(_S, _O), key=lambda x: x[0]):
                 v = np.array([j[1] for j in v])
                 kbid = _IDXS[k][np.argmax(v)]
-                if np.max(v) < 0.2:
-                    R.append((k[0], k[1], 'NIL'))
-                else:
-                    R.append((k[0], k[1], kbid))
+                R.append((k[0], k[1], kbid))
         return list(set(R))
     else:
         return []
