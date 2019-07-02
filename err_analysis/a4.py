@@ -3,7 +3,7 @@ from pathlib import Path
 import numpy as np
 from configuration.config import data_dir
 
-err = json.load((Path(data_dir)/'err_log/err_log__[el_pt_object_eval.py].json').open())['err']
+err = json.load((Path(data_dir)/'err_log/err_log__[el_pt_object.py].json').open())['err']
 nil_list, wrong_list, right_list = [],[],[]
 for e in err:
     M = sorted(e['mention_data'], key=lambda x:x[0])
@@ -56,7 +56,14 @@ wrong
 right
 (array([  32,   35,   21,   30,   52,   48,   58,   95,  169, 2972]), array([0. , 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1. ]))
 
-
+mse loss
+nil_list size: 575, wrong_list size: 1156, right_list size: 3297
+nil
+(array([158,  69,  48,  48,  38,  17,  29,  29,  32, 107]), array([0. , 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1. ]))
+wrong
+(array([ 96,  88,  73,  73,  58,  75,  82,  91, 147, 373]), array([0. , 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1. ]))
+right
+(array([  16,   34,   25,   36,   39,   43,   50,   85,  226, 2743]), array([0. , 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1. ]))
 
 """
 
