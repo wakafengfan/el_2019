@@ -206,10 +206,10 @@ class data_generator:
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 n_gpu = torch.cuda.device_count()
 
-config = BertConfig(str(Path(data_dir) / 'object_1/object_model_config.json'))
+config = BertConfig(str(Path(data_dir) / 'object_model_config.json'))
 object_model = ObjectModel(config)
 object_model.load_state_dict(
-    torch.load(Path(data_dir) / 'object_1/object_model.pt', map_location='cpu' if not torch.cuda.is_available() else None))
+    torch.load(Path(data_dir) / 'object_model.pt', map_location='cpu' if not torch.cuda.is_available() else None))
 
 object_model.to(device)
 if n_gpu > 1:
