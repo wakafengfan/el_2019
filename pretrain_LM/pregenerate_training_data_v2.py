@@ -113,7 +113,7 @@ def create_masked_lm_predictions(T):
 
     return T, mask_indices, masked_token_labels
 
-train_data = json.load((Path(data_dir)/'train_data_me.json').open())[:1000]
+train_data = json.load((Path(data_dir)/'train_data_me.json').open())
 
 def next_sentence(d):
     tmp_instance = []
@@ -172,13 +172,13 @@ def next_sentence(d):
 
 threads = 8
 chunk_size = 64
-for epoch in trange(epochs_to_generate, desc='Epoch'):
+for epoch in trange(epochs_to_generate):
     epoch_filename = (Path(data_dir)/ f'epoch_{epoch}.json').open('w')
 
     instances = []
     with Pool(threads) as p:
         func = partial(next_sentence)
-        tmp_list = list(tqdm(p.imap(func, train_data, chunksize=chunk_size), desc='next_sentence'))
+        tmp_list = list(tqdm(p.imap(func, train_data, chunksize=chunk_size), desc=f'Epoch:{epoch}'))
 
     for tmp in tmp_list:
         instances.extend(tmp)
