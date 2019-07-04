@@ -8,7 +8,7 @@ import numpy as np
 from collections import namedtuple
 from tempfile import TemporaryDirectory
 
-from torch.utils.data import DataLoader, Dataset
+from torch.utils.data import DataLoader, Dataset, RandomSampler
 from torch.utils.data.distributed import DistributedSampler
 from tqdm import tqdm
 
@@ -16,7 +16,7 @@ from pytorch_pretrained_bert.modeling import BertForPreTraining
 from pytorch_pretrained_bert.tokenization import BertTokenizer
 from pytorch_pretrained_bert.optimization import BertAdam
 
-from configuration.config import data_dir, bert_data_path, bert_vocab_path
+from configuration.config import data_dir, bert_data_path, bert_vocab_path, bert_model_path
 
 InputFeatures = namedtuple("InputFeatures", "input_ids input_mask segment_ids lm_label_ids is_next")
 
@@ -74,17 +74,17 @@ def convert_example_to_features(example, max_seq_length):
 
 
 class PregeneratedDataset(Dataset):
-    def __init__(self, training_path, epoch, tokenizer, num_data_epochs, reduce_memory=False):
-        self.vocab = tokenizer.vocab
-        self.tokenizer = tokenizer
+    def __init__(self, training_path, epoch, num_data_epochs, reduce_memory=False):
+        self.vocab = bert_vocab
         self.epoch = epoch
         self.data_epoch = epoch % num_data_epochs
-        data_file = training_path / f"epoch_{self.data_epoch}.json"
-        metrics_file = training_path / f"epoch_{self.data_epoch}_metrics.json"
+        data_file = Path(training_path) / f"epoch_{self.data_epoch}.json"
+        metrics_file = Path(training_path) / f"epoch_{self.data_epoch}_metrics.json"
         assert data_file.is_file() and metrics_file.is_file()
         metrics = json.loads(metrics_file.read_text())
         num_samples = metrics['num_training_examples']
-        seq_len = metrics['max_seq_len']
+        # seq_len = metrics['max_seq_len']
+        seq_len = 250
         self.temp_dir = None
         self.working_dir = None
         if reduce_memory:
@@ -146,8 +146,8 @@ epochs = 4
 
 samples_per_epoch = []
 for i in range(epochs):
-    epoch_file = data_dir / f"epoch_{i}.json"
-    metrics_file = data_dir / f"epoch_{i}_metrics.json"
+    epoch_file = Path(data_dir) / f"epoch_{i}.json"
+    metrics_file = Path(data_dir) / f"epoch_{i}_metrics.json"
     if epoch_file.is_file() and metrics_file.is_file():
         metrics = json.loads(metrics_file.read_text())
         samples_per_epoch.append(metrics['num_training_examples'])
@@ -172,8 +172,6 @@ torch.manual_seed(42)
 if n_gpu > 0:
     torch.cuda.manual_seed_all(42)
 
-tokenizer = BertTokenizer.from_pretrained(Path(bert_data_path)/'bert-base-chinese', do_lower_case=True)
-
 total_train_examples = 0
 for i in range(epochs):
     # The modulo takes into account the fact that we may loop over limited epochs of data
@@ -182,7 +180,7 @@ for i in range(epochs):
 num_train_optimization_steps = int(total_train_examples / train_batch_size)
 
 # Prepare model
-model = BertForPreTraining.from_pretrained(Path(bert_data_path)/'bert-base-chinese')
+model = BertForPreTraining.from_pretrained(pretrained_model_name_or_path=bert_model_path, cache_dir=bert_data_path)
 model.to(device)
 if n_gpu > 1:
     model = torch.nn.DataParallel(model)
@@ -202,16 +200,15 @@ optimizer = BertAdam(optimizer_grouped_parameters,
                      warmup=warmup_proportion,
                      t_total=num_train_optimization_steps)
 
-global_step = 0
 logging.info("***** Running training *****")
 logging.info(f"  Num examples = {total_train_examples}")
 logging.info("  Batch size = %d", train_batch_size)
 logging.info("  Num steps = %d", num_train_optimization_steps)
 model.train()
 for epoch in range(epochs):
-    epoch_dataset = PregeneratedDataset(epoch=epoch, training_path=data_dir, tokenizer=tokenizer,
+    epoch_dataset = PregeneratedDataset(epoch=epoch, training_path=data_dir,
                                         num_data_epochs=num_data_epochs, reduce_memory=reduce_memory)
-    train_sampler = DistributedSampler(epoch_dataset)
+    train_sampler = RandomSampler(epoch_dataset)
     train_dataloader = DataLoader(epoch_dataset, sampler=train_sampler, batch_size=train_batch_size)
     tr_loss = 0
     nb_tr_examples, nb_tr_steps = 0, 0
@@ -232,7 +229,6 @@ for epoch in range(epochs):
             pbar.set_postfix_str(f"Loss: {mean_loss:.5f}")
             optimizer.step()
             optimizer.zero_grad()
-            global_step += 1
 
 # Save a trained model
 logging.info("** ** * Saving fine-tuned model ** ** * ")

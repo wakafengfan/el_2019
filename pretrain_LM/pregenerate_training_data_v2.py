@@ -118,7 +118,7 @@ def create_masked_lm_predictions(T):
 
     return T, mask_indices, masked_token_labels
 
-train_data = json.load((Path(data_dir)/'train_data_me.json').open())
+train_data = json.load((Path(data_dir)/'train_data_me.json').open())[:50]
 
 def next_sentence(d):
     tmp_instance = []
@@ -152,7 +152,7 @@ def next_sentence(d):
             seq_b_non_1_kids.remove(m['kb_id'])
             seq_b_non_1_kids = random.sample(seq_b_non_1_kids, k=min(len(seq_b_non_1_kids), 2))
         else:
-            print(f"***{m['mention']}***")
+            seq_b_non_1_kids = []
 
         seq_b_non_2_kids = set(id2kb.keys()) - set(kb2id[m['mention']])
         seq_b_non_2_kids = random.sample(seq_b_non_2_kids, k=min(len(seq_b_non_2_kids), 2))
@@ -177,7 +177,7 @@ def next_sentence(d):
 
 threads = 8
 chunk_size = 64
-for epoch in trange(2,epochs_to_generate):
+for epoch in trange(0,epochs_to_generate):
     epoch_filename = (Path(data_dir)/ f'epoch_{epoch}.json').open('w')
 
     instances = []
