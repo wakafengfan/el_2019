@@ -30,7 +30,7 @@ for fn in (Path(data_dir) / 'pretrain_data').iterdir():
     np.random.shuffle(total_list)
     v2_path = (Path(data_dir) / 'pretrain_data_v2' / fn.name.replace('.json', '_v2.json')).open('w')
     for d in total_list:
-        v2_path.write(d + '\n')
+        v2_path.write(d)
     metrics_filename = (Path(data_dir) / 'pretrain_data_v2' / fn.name.replace('.json', '_metrics.json')).open('w')
     metrics_filename.write(json.dumps({'num_training_examples': len(total_list)}))
     print(f'num_training_examples: {len(total_list)}')
