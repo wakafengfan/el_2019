@@ -1,12 +1,13 @@
 import json
 import random
+import re
 from pathlib import Path
 import numpy as np
 
 from configuration.config import data_dir
 
 for fn in (Path(data_dir) / 'pretrain_data').iterdir():
-    if 'metric' in fn.name:
+    if not re.match(r'epoch_\d\.json', fn.name):
         continue
     right_list = []
     wrong_list = []

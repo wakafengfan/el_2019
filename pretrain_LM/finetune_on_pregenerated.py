@@ -1,20 +1,17 @@
 import collections
-from pathlib import Path
-import torch
-import logging
 import json
+import logging
 import random
-import numpy as np
 from collections import namedtuple
+from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from torch.utils.data import DataLoader, Dataset, RandomSampler
-from torch.utils.data.distributed import DistributedSampler
-from tqdm import tqdm
-
+import numpy as np
+import torch
 from pytorch_pretrained_bert.modeling import BertForPreTraining
-from pytorch_pretrained_bert.tokenization import BertTokenizer
 from pytorch_pretrained_bert.optimization import BertAdam
+from torch.utils.data import DataLoader, Dataset, RandomSampler
+from tqdm import tqdm
 
 from configuration.config import data_dir, bert_data_path, bert_vocab_path, bert_model_path
 
@@ -78,8 +75,8 @@ class PregeneratedDataset(Dataset):
         self.vocab = bert_vocab
         self.epoch = epoch
         self.data_epoch = epoch % num_data_epochs
-        data_file = Path(training_path) / f"epoch_{self.data_epoch}.json"
-        metrics_file = Path(training_path) / f"epoch_{self.data_epoch}_metrics.json"
+        data_file = training_path / f"epoch_{self.data_epoch}_v2.json"
+        metrics_file = training_path / f"epoch_{self.data_epoch}_metrics.json"
         assert data_file.is_file() and metrics_file.is_file()
         metrics = json.loads(metrics_file.read_text())
         num_samples = metrics['num_training_examples']
@@ -146,8 +143,8 @@ epochs = 4
 
 samples_per_epoch = []
 for i in range(epochs):
-    epoch_file = Path(data_dir) / f"epoch_{i}.json"
-    metrics_file = Path(data_dir) / f"epoch_{i}_metrics.json"
+    epoch_file = Path(data_dir) /'pretrain_data_v2'/ f"epoch_{i}_v2.json"
+    metrics_file = Path(data_dir)/'pretrain_data_v2' / f"epoch_{i}_metrics.json"
     if epoch_file.is_file() and metrics_file.is_file():
         metrics = json.loads(metrics_file.read_text())
         samples_per_epoch.append(metrics['num_training_examples'])
@@ -206,7 +203,7 @@ logging.info("  Batch size = %d", train_batch_size)
 logging.info("  Num steps = %d", num_train_optimization_steps)
 model.train()
 for epoch in range(epochs):
-    epoch_dataset = PregeneratedDataset(epoch=epoch, training_path=data_dir,
+    epoch_dataset = PregeneratedDataset(epoch=epoch, training_path=Path(data_dir)/'pretrain_data_v2',
                                         num_data_epochs=num_data_epochs, reduce_memory=reduce_memory)
     train_sampler = RandomSampler(epoch_dataset)
     train_dataloader = DataLoader(epoch_dataset, sampler=train_sampler, batch_size=train_batch_size)

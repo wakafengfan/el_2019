@@ -1,8 +1,11 @@
 import os
 from pathlib import Path
 
-# ROOT_PATH = os.path.normpath(os.path.join(os.path.abspath(os.path.dirname(__file__)), ".."))
-ROOT_PATH = "/root/el_2019"
+if os.environ.get("ROOT_DIR"):
+    ROOT_PATH = "/root/el_2019"
+else:
+    ROOT_PATH = os.path.normpath(os.path.join(os.path.abspath(os.path.dirname(__file__)), ".."))
+
 # data
 data_dir = os.path.join(ROOT_PATH, "data")
 model_dir = os.path.join(ROOT_PATH, "model")
