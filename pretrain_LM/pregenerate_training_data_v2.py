@@ -1,5 +1,6 @@
 import collections
 import json
+import logging
 import random
 from functools import partial
 from pathlib import Path
@@ -9,6 +10,10 @@ from tqdm import trange, tqdm
 from configuration.config import data_dir, bert_vocab_path
 from multiprocessing import Pool
 
+logging.basicConfig(format='%(asctime)s - %(levelname)s - %(name)s - %(message)s',
+                    datefmt='%m/%d/%y %H:%M:%S',
+                    level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 id2kb = {}
 for l in (Path(data_dir) / 'kb_data').open():
@@ -172,7 +177,7 @@ def next_sentence(d):
 
 threads = 8
 chunk_size = 64
-for epoch in trange(epochs_to_generate):
+for epoch in enumerate(1,epochs_to_generate):
     epoch_filename = (Path(data_dir)/ f'epoch_{epoch}.json').open('w')
 
     instances = []
@@ -180,8 +185,10 @@ for epoch in trange(epochs_to_generate):
         func = partial(next_sentence)
         tmp_list = list(tqdm(p.imap(func, train_data, chunksize=chunk_size), desc=f'Epoch:{epoch}'))
 
+    logger.info(f'tmp_list size: {len(tmp_list)}')
     for tmp in tmp_list:
         instances.extend(tmp)
+    logger.info(f'instances size: {len(instances)}')
 
     for instance in instances:
         epoch_filename.write(json.dumps(instance, ensure_ascii=False) + '\n')
