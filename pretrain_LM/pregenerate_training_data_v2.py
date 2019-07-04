@@ -177,7 +177,7 @@ def next_sentence(d):
 
 threads = 8
 chunk_size = 64
-for epoch in enumerate(1,epochs_to_generate):
+for epoch in trange(1,epochs_to_generate):
     epoch_filename = (Path(data_dir)/ f'epoch_{epoch}.json').open('w')
 
     instances = []
