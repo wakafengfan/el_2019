@@ -81,7 +81,7 @@ class PregeneratedDataset(Dataset):
         metrics = json.loads(metrics_file.read_text())
         num_samples = metrics['num_training_examples']
         # seq_len = metrics['max_seq_len']
-        seq_len = 250
+        seq_len = 253
         self.temp_dir = None
         self.working_dir = None
         if reduce_memory:
