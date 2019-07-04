@@ -19,6 +19,7 @@ InputFeatures = namedtuple("InputFeatures", "input_ids input_mask segment_ids lm
 
 log_format = '%(asctime)-10s: %(message)s'
 logging.basicConfig(level=logging.INFO, format=log_format)
+logging.info(f'data_dir: {data_dir}')
 
 def load_vocab(vocab_file):
     """Loads a vocabulary file into a dictionary."""
