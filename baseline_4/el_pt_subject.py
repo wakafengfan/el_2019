@@ -209,6 +209,7 @@ optimizer = BertAdam(optimizer_grouped_parameters,
                      t_total=num_train_optimization_steps)
 
 freq = json.load((Path(data_dir)/'el_freq_dic_1.json').open())
+group = json.load((Path(data_dir)/ 'el_group_word.json').open())
 
 def extract_items(text_in):
     _X1 = [bert_vocab.get(c, bert_vocab.get('[UNK]')) for c in text_in]
@@ -242,7 +243,24 @@ def extract_items(text_in):
         if _s[0] in freq:
             if freq[_s[0]]['per'] > 0.8:
                 _subjects.append(_s)
-    return list(set(_subjects))
+
+    _subjects = list(set(_subjects))
+    _subjects_new = _subjects.copy()
+    for _s, _s_s, _s_e in _subjects:
+        for _i, _i_s, _i_e in _subjects:
+            if _s_s == _i_s and _s_e != _i_e and _s in group:
+                if group[_s]['group_labeled_per'] > 1.5 * group[_s]['s_same_per'] and (_i, _i_s, _i_e) in _subjects_new:
+                    _subjects_new.remove((_i, _i_s, _i_e))
+                if group[_s]['s_same_per'] > 1.5 * group[_s]['group_labeled_per'] and (_s, _s_s, _s_e) in _subjects_new:
+                    _subjects_new.remove((_s, _s_s, _s_e))
+
+            if _s_s != _i_s and _s_e == _i_e and _s in group:
+                if group[_s]['group_labeled_per'] > 1.5 * group[_s]['e_same_per'] and (_i, _i_s, _i_e) in _subjects_new:
+                    _subjects_new.remove((_i, _i_s, _i_e))
+                if group[_s]['e_same_per'] > 1.5 * group[_s]['group_labeled_per'] and (_s, _s_s, _s_e) in _subjects_new:
+                    _subjects_new.remove((_s, _s_s, _s_e))
+
+    return list(set(_subjects_new))
 
 best_score = 0
 best_epoch = 0
@@ -290,9 +308,10 @@ for e in range(epoch_num):
     A, B, C = 1e-10, 1e-10, 1e-10
     err_dict = defaultdict(list)
     for eval_idx, d in tqdm(enumerate(dev_data[:5000])):
+        m_ = [m for m in d['mention_data'] if m[0] in kb2id]
 
         R = set(map(lambda x: (str(x[0]), str(x[1])), set(extract_items(d['text']))))
-        T = set(map(lambda x: (str(x[0]), str(x[1])), set(d['mention_data'])))
+        T = set(map(lambda x: (str(x[0]), str(x[1])), set(m_)))
         A += len(R & T)
         B += len(R)
         C += len(T)
