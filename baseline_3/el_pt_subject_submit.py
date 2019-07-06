@@ -170,10 +170,10 @@ class data_generator:
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 n_gpu = torch.cuda.device_count()
 
-config = BertConfig(str(Path(data_dir) / 'subject_1/subject_model_config.json'))
+config = BertConfig(str(Path(data_dir) / 'subject_model_config.json'))
 subject_model = SubjectModel(config)
 subject_model.load_state_dict(
-    torch.load(Path(data_dir) / 'subject_1/subject_model.pt', map_location='cpu' if not torch.cuda.is_available() else None))
+    torch.load(Path(data_dir) / 'subject_model.pt', map_location='cpu' if not torch.cuda.is_available() else None))
 
 
 subject_model.to(device)
@@ -239,7 +239,7 @@ def extract_items(text_in):
 
 
 subject_model.eval()
-output_path = (Path(data_dir)/'submission_subject.json').open('w')
+output_path = Path('submission_subject.json').open('w')
 for l in tqdm((Path(data_dir)/'develop.json').open()):
     doc = json.loads(l)
     text = doc['text']
