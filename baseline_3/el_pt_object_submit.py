@@ -273,7 +273,7 @@ def extract_items(d):
 
 
 object_model.eval()
-output_path = (Path(data_dir)/'submission_object.json').open('w')
+output_path = Path('submission_object.json').open('w')
 cnt = 0
 for l in tqdm((Path(data_dir)/'submission_subject.json').open()):
     cnt += 1
