@@ -11,7 +11,7 @@ import torch.nn as nn
 from pytorch_pretrained_bert import BertAdam, BertConfig
 from tqdm import tqdm
 
-from baseline_3.model_zoo import SubjectModel
+from baseline_4.model_zoo import SubjectModel
 from configuration.config import data_dir, bert_vocab_path, bert_data_path
 from configuration.match import match2
 

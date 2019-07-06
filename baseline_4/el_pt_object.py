@@ -13,8 +13,8 @@ from pytorch_pretrained_bert import BertAdam, BertConfig
 from torch.utils.data import DataLoader, TensorDataset
 from tqdm import tqdm
 
-from baseline_3.model_zoo import ObjectModel
-from configuration.config import data_dir, bert_vocab_path, bert_model_path, bert_data_path
+from baseline_4.model_zoo import ObjectModel
+from configuration.config import data_dir, bert_vocab_path, bert_data_path
 
 min_count = 2
 mode = 0
@@ -80,6 +80,7 @@ else:
 
 dev_data = [train_data[j] for i, j in enumerate(random_order) if i % 9 == mode]
 train_data = [train_data[j] for i, j in enumerate(random_order) if i % 9 != mode]
+test_data, train_data = train_data[-10000:], train_data[:-10000]
 
 
 def seq_padding(X):
@@ -92,7 +93,7 @@ def seq_padding_bert(X_):
     for _ in X_:
         X1_ids = [bert_vocab['[CLS]']] + _[0] + [bert_vocab['[SEP]']]
         X1_SEG = [0] * len(X1_ids)
-        X2_ids = _[1] + [bert_vocab['[SEP]']]
+        X2_ids = _[1]
         X2_SEG = [1] * len(X2_ids)
 
         X_id = X1_ids + X2_ids
@@ -223,7 +224,6 @@ if n_gpu > 1:
     object_model = torch.nn.DataParallel(object_model)
 
 # loss
-# b2_loss_func = nn.BCELoss()
 b2_loss_func = nn.MSELoss()
 
 # optim
@@ -332,7 +332,7 @@ for e in range(epoch_num):
     object_model.eval()
     A, B, C = 1e-10, 1e-10, 1e-10
     err_dict = defaultdict(list)
-    for eval_idx, d in tqdm(enumerate(dev_data[:5000])):
+    for eval_idx, d in enumerate(dev_data[:5000]):
         m_ = [m for m in d['mention_data'] if m[0] in kb2id]
 
         p = set(map(lambda x: (str(x[0]), str(x[1]), str(x[2]), f'{x[3]:.5f}'), extract_items(d)))
@@ -355,7 +355,7 @@ for e in range(epoch_num):
         best_score = f1
         best_epoch = e
 
-        json.dump(err_dict, (Path(data_dir) / 'err_log__[el_pt_object.py].json').open('w'), ensure_ascii=False, indent=4)
+        json.dump(err_dict, (Path(data_dir) / 'err_log_dev__[el_pt_object.py].json').open('w'), ensure_ascii=False, indent=4)
 
         o_model_to_save = object_model.module if hasattr(object_model, 'module') else object_model
 
@@ -365,3 +365,41 @@ for e in range(epoch_num):
 
     logger.info(
         f'Epoch:{e}-precision:{precision:.4f}-recall:{recall:.4f}-f1:{f1:.4f} - best f1: {best_score:.4f} - best epoch:{best_epoch}')
+
+
+config = BertConfig(str(Path(data_dir) / 'object_model_config.json'))
+object_model = ObjectModel(config)
+object_model.load_state_dict(
+    torch.load(Path(data_dir) / 'object_model.pt', map_location='cpu' if not torch.cuda.is_available() else None))
+object_model.to(device)
+if n_gpu > 1:
+    torch.cuda.manual_seed_all(42)
+
+    logger.info(f'let us use {n_gpu} gpu')
+    object_model = torch.nn.DataParallel(object_model)
+
+object_model.eval()
+A, B, C = 1e-10, 1e-10, 1e-10
+err_dict = defaultdict(list)
+for eval_idx, d in enumerate(test_data):
+    m_ = [m for m in d['mention_data'] if m[0] in kb2id]
+
+    p = set(map(lambda x: (str(x[0]), str(x[1]), str(x[2]), f'{x[3]:.5f}'), extract_items(d)))
+
+    R = set(map(lambda x: (str(x[0]), str(x[1]), str(x[2])), p))
+    T = set(map(lambda x: (str(x[0]), str(x[1]), str(x[2])), set(m_)))
+    A += len(R & T)
+    B += len(R)
+    C += len(T)
+
+    if R != T:
+        err_dict['err'].append({'text': d['text'],
+                                'mention_data': list(T),
+                                'predict': list(p)})
+    if eval_idx % 100 == 0:
+        logger.info(f'Dev eval_idx:{eval_idx} - precision:{A/B:.5f} - recall:{A/C:.5f} - f1:{2 * A / (B + C):.5f}')
+
+json.dump(err_dict, (Path(data_dir) / 'err_log_test__[el_pt_object.py].json').open('w'), ensure_ascii=False, indent=4)
+
+f1, precision, recall = 2 * A / (B + C), A / B, A / C
+logger.info(f'Test precision:{precision:.4f}-recall:{recall:.4f}-f1:{f1:.4f}')
