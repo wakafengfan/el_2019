@@ -179,35 +179,13 @@ def extract_items(text_in):
 
 
 subject_model.eval()
-
-A, B, C = 1e-10, 1e-10, 1e-10
-err_dict = defaultdict(list)
-output_path = (Path(data_dir)/'eval_subject.json').open('w')
-
-for eval_idx, d in enumerate(test_data):
-    M = [m for m in d['mention_data'] if m[0] in kb2id]
-
-    R = set(map(lambda x: (str(x[0]), str(x[1])), set(extract_items(d['text']))))
-    T = set(map(lambda x: (str(x[0]), str(x[1])), set(M)))
-    A += len(R & T)
-    B += len(R)
-    C += len(T)
-
-    if R != T:
-        err_dict['err'].append({'text': d['text'],
-                                'mention_data': list(T),
-                                'predict': list(R)})
-    if eval_idx % 100 == 0:
-        logger.info(f'eval_idx:{eval_idx} - precision:{A/B:.5f} - recall:{A/C:.5f} - f1:{2 * A / (B + C):.5f}')
-
-    d.update({
-        'mention_data_pred': [(r[0], int(r[1])) for r in R]
+output_path = Path('submission_subject.json').open('w')
+for l in tqdm((Path(data_dir) / 'develop.json').open()):
+    doc = json.loads(l)
+    text = doc['text']
+    R = extract_items(text)
+    doc.update({
+        'mention_data': [(r[0], int(r[1])) for r in R]
     })
-    output_path.write(json.dumps(d, ensure_ascii=False) + '\n')
-
-
-f1, precision, recall = 2 * A / (B + C), A / B, A / C
-logger.info(f'precision:{precision:.4f}-recall:{recall:.4f}-f1:{f1:.4f}')
-
-json.dump(err_dict, (Path(data_dir) / 'err_log_tst__[el_pt_subject_eval.py].json').open('w'), ensure_ascii=False)
+    output_path.write(json.dumps(doc, ensure_ascii=False) + '\n')
 

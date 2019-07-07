@@ -235,7 +235,7 @@ def extract_items(text_in):
     # subject补余
     for _s in match2(text_in):
         if _s[0] in freq:
-            if freq[_s[0]]['per'] > 0.8 or (freq[_s[0]['exp']]<5 and freq[_s[0]]['per']==0.5):
+            if freq[_s[0]]['per'] > 0.8 or (freq[_s[0]]['exp']<5 and freq[_s[0]]['per']==0.5):
                 _subjects.append(_s)
 
     _subjects = list(set(_subjects))
