@@ -242,10 +242,10 @@ def extract_items(text_in):
     _subjects_new = _subjects.copy()
     for _s, _s_s, _s_e in _subjects:
         for _i, _i_s, _i_e in _subjects:
-            if _s_s == _i_s and _s_e != _i_e and _s in group:
+            if _s_s == _i_s and _s_e != _i_e and _s in group and len(_s)>len(_i):
                 _subjects_new.remove((_i, _i_s, _i_e))
 
-            if _s_s != _i_s and _s_e == _i_e and _s in group:
+            if _s_s != _i_s and _s_e == _i_e and _s in group and len(_s)>len(_i):
                 _subjects_new.remove((_i, _i_s, _i_e))
 
     return list(set(_subjects_new))
