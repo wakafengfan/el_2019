@@ -190,6 +190,7 @@ if __name__ == '__main__':
     a = '商业摄影接案五大法则 ╟ fotomen'
     a = '《妈妈留给我一首歌》 - 万日月'
     a = '死神少年》maggot_【原创小说|纯爱小说】'
+    a = '中国传世名画——萧绎《职贡图》_抱节君'
     print(match2(a))
     # tst_entity_des_match()
     # tst_recall()
