@@ -3,7 +3,6 @@ import json
 import logging
 from collections import defaultdict
 from pathlib import Path
-from random import choice
 
 import numpy as np
 import torch
@@ -15,11 +14,10 @@ from baseline_4.model_zoo import SubjectModel
 from configuration.config import data_dir, bert_vocab_path, bert_data_path
 from configuration.match import match2
 
-min_count = 2
 mode = 0
 hidden_size = 768
 epoch_num = 10
-batch_size = 32
+batch_size = 64
 
 logging.basicConfig(format='%(asctime)s - %(levelname)s - %(name)s - %(message)s',
                     datefmt='%m/%d/%y %H:%M:%S',
@@ -129,7 +127,7 @@ class data_generator:
     def __iter__(self):
         idxs = list(range(len(self.data)))
         np.random.shuffle(idxs)
-        X1, S1, S2, Y, X1_MASK = [], [], [], [], []
+        X1, S1, S2, X1_MASK = [], [], [], []
         for i in idxs:
             d = self.data[i]
             text = d['text']
@@ -139,33 +137,27 @@ class data_generator:
             s1, s2 = np.zeros(len(text)), np.zeros(len(text))
             mds = {}
             for md in d['mention_data']:
-                if md[0] in kb2id:  # train subject存在于kb subject
+                if md[0] in kb2id:
                     j1 = md[1]
                     j2 = md[1] + len(md[0])
                     s1[j1] = 1
                     s2[j2 - 1] = 1
-                    mds[(j1, j2)] = (md[0], md[2])
+                    mds[(j1, j2)] = (md[0], md[2])  # {(s, e): (sub, kbid)}
 
             if mds:
-                j1, j2 = choice(list(mds.keys()))
-                y = np.zeros(len(text))
-                y[j1:j2] = 1
-
                 X1.append(x1)
                 S1.append(s1)
                 S2.append(s2)
-                Y.append(y)
                 X1_MASK.append(x1_mask)
                 if len(X1) == self.batch_size or i == idxs[-1]:
                     X1 = torch.tensor(seq_padding(X1), dtype=torch.long)  # [b,s1]
                     S1 = torch.tensor(seq_padding(S1), dtype=torch.float32)  # [b,s1]
                     S2 = torch.tensor(seq_padding(S2), dtype=torch.float32)  # [b,s1]
-                    Y = torch.tensor(seq_padding(Y), dtype=torch.float32)  # [b,s1]
                     X1_MASK = torch.tensor(seq_padding(X1_MASK), dtype=torch.long)
                     X1_SEG = torch.zeros(*X1.size(), dtype=torch.long)
 
-                    yield [X1, S1, S2, Y, X1_MASK, X1_SEG]
-                    X1, S1, S2, Y, X1_MASK = [], [], [], [], []
+                    yield [X1, S1, S2, X1_MASK, X1_SEG]
+                    X1, S1, S2, X1_MASK = [], [], [], []
 
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -189,7 +181,8 @@ if n_gpu > 1:
     subject_model = torch.nn.DataParallel(subject_model)
 
 # loss
-b_loss_func = nn.BCELoss(reduction='none')
+# b_loss_func = nn.BCELoss(reduction='none')
+b_loss_func = nn.MSELoss(reduction='none')
 
 # optim
 param_optimizer = list(subject_model.named_parameters())
@@ -242,7 +235,7 @@ def extract_items(text_in):
     # subject补余
     for _s in match2(text_in):
         if _s[0] in freq:
-            if freq[_s[0]]['per'] > 0.8:
+            if freq[_s[0]]['per'] > 0.8 or (freq[_s[0]['exp']]<5 and freq[_s[0]]['per']==0.5):
                 _subjects.append(_s)
 
     _subjects = list(set(_subjects))
@@ -272,7 +265,7 @@ for e in range(epoch_num):
         #     break
 
         batch = tuple(t.to(device) for t in batch)
-        X1, S1, S2, Y, X1_MASK, X1_SEG = batch
+        X1, S1, S2, X1_MASK, X1_SEG = batch
         pred_s1, pred_s2, x1_mask_ = subject_model(device, X1, X1_SEG, X1_MASK)
 
         s1_loss = b_loss_func(pred_s1, S1)  # [b,s]
@@ -302,7 +295,7 @@ for e in range(epoch_num):
     subject_model.eval()
     A, B, C = 1e-10, 1e-10, 1e-10
     err_dict = defaultdict(list)
-    for eval_idx, d in tqdm(enumerate(dev_data[:5000])):
+    for eval_idx, d in enumerate(dev_data[:5000]):
         m_ = [m for m in d['mention_data'] if m[0] in kb2id]
 
         R = set(map(lambda x: (str(x[0]), str(x[1])), set(extract_items(d['text']))))
@@ -323,7 +316,7 @@ for e in range(epoch_num):
         best_score = f1
         best_epoch = e
 
-        json.dump(err_dict, (Path(data_dir) / 'err_log__[el_pt_subject.py].json').open('w'), ensure_ascii=False)
+        json.dump(err_dict, (Path(data_dir) / 'err_log_dev__[el_pt_subject.py].json').open('w'), ensure_ascii=False)
 
         s_model_to_save = subject_model.module if hasattr(subject_model, 'module') else subject_model
         torch.save(s_model_to_save.state_dict(), data_dir + '/subject_model.pt')
@@ -332,3 +325,40 @@ for e in range(epoch_num):
 
     logger.info(
         f'Epoch:{e}-precision:{precision:.4f}-recall:{recall:.4f}-f1:{f1:.4f} - best f1: {best_score:.4f} - best epoch:{best_epoch}')
+
+
+config = BertConfig(str(Path(data_dir) / 'subject_model_config.json'))
+subject_model = SubjectModel(config)
+subject_model.load_state_dict(
+    torch.load(Path(data_dir) / 'subject_model.pt', map_location='cpu' if not torch.cuda.is_available() else None))
+
+subject_model.to(device)
+if n_gpu > 1:
+    torch.cuda.manual_seed_all(42)
+
+    logger.info(f'let us use {n_gpu} gpu')
+    subject_model = torch.nn.DataParallel(subject_model)
+
+subject_model.eval()
+A, B, C = 1e-10, 1e-10, 1e-10
+err_dict = defaultdict(list)
+for eval_idx, d in enumerate(test_data):
+    m_ = [m for m in d['mention_data'] if m[0] in kb2id]
+
+    R = set(map(lambda x: (str(x[0]), str(x[1])), set(extract_items(d['text']))))
+    T = set(map(lambda x: (str(x[0]), str(x[1])), set(m_)))
+    A += len(R & T)
+    B += len(R)
+    C += len(T)
+
+    if R != T:
+        err_dict['err'].append({'text': d['text'],
+                                'mention_data': list(T),
+                                'predict': list(R)})
+    if eval_idx % 100 == 0:
+        logger.info(f'Test eval_idx:{eval_idx} - precision:{A/B:.5f} - recall:{A/C:.5f} - f1:{2 * A / (B + C):.5f}')
+
+json.dump(err_dict, (Path(data_dir) / 'err_log_tst__[el_pt_subject.py].json').open('w'), ensure_ascii=False)
+
+f1, precision, recall = 2 * A / (B + C), A / B, A / C
+logger.info(f'Test precision:{precision:.4f}-recall:{recall:.4f}-f1:{f1:.4f}')

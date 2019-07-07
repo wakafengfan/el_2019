@@ -23,5 +23,7 @@ for l in json.load((Path(data_dir)/'err_log__[el_pt_subject.py].json').open())['
 a = collections.Counter(no_recall).most_common()
 b = collections.Counter(recall_no_precision).most_common()
 
+freq = json.load((Path(data_dir)/'el_freq_dic_1.json').open())
+a1 = [x for x in a if x[0] in freq and freq[x[0]]['exp']<5 and freq[x[0]]['per']==0.5]
 
 print('Done')
