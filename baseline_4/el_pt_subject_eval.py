@@ -116,10 +116,10 @@ bert_vocab = load_vocab(bert_vocab_path)
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 n_gpu = torch.cuda.device_count()
 
-config = BertConfig(str(Path(data_dir) / 'subject_model_config.json'))
+config = BertConfig(str(Path(data_dir) / 'subject_model_1/subject_model_config.json'))
 subject_model = SubjectModel(config)
 subject_model.load_state_dict(
-        torch.load(Path(data_dir) / 'subject_model.pt', map_location='cpu' if not torch.cuda.is_available() else None))
+        torch.load(Path(data_dir) / 'subject_model_1/subject_model.pt', map_location='cpu' if not torch.cuda.is_available() else None))
 
 
 subject_model.to(device)
@@ -162,17 +162,17 @@ def extract_items(text_in):
     # subject补余
     for _s in match2(text_in):
         if _s[0] in freq:
-            if freq[_s[0]]['per'] > 0.8 or (freq[_s[0]]['exp']<5 and freq[_s[0]]['per']==0.5):
+            if freq[_s[0]]['per'] > 0.8 or (freq[_s[0]]['exp']<5 and freq[_s[0]]['per']>=0.5):
                 _subjects.append(_s)
 
     _subjects = list(set(_subjects))
     _subjects_new = _subjects.copy()
     for _s,_s_s, _s_e in _subjects:
         for _i, _i_s,_i_e in _subjects:
-            if _s_s == _i_s and _s_e != _i_e and _s in group:
+            if _s_s == _i_s and _s_e != _i_e and _s in group and len(_s)>len(_i) and _i in _subjects_new:
                 _subjects_new.remove((_i,_i_s,_i_e))
 
-            if _s_s != _i_s and _s_e == _i_e and _s in group:
+            if _s_s != _i_s and _s_e == _i_e and _s in group and len(_s)>len(_i) and _i in _subjects_new:
                 _subjects_new.remove((_i,_i_s,_i_e))
 
     return list(set(_subjects_new))
