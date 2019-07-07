@@ -143,7 +143,7 @@ def extract_items(text_in):
         _k1, _k2, _ = subject_model(device, _X1, _X1_SEG, _X1_MASK)  # _k1:[1,s]
         _k1 = _k1[0, :].detach().cpu().numpy()
         _k2 = _k2[0, :].detach().cpu().numpy()
-        _k1, _k2 = np.where(_k1 > 0.3)[0], np.where(_k2 > 0.5)[0]
+        _k1, _k2 = np.where(_k1 > 0.4)[0], np.where(_k2 > 0.5)[0]
 
     _subjects = []
     if len(_k1) and len(_k2):
@@ -206,8 +206,8 @@ for eval_idx, d in enumerate(test_data):
     output_path.write(json.dumps(d, ensure_ascii=False) + '\n')
 
 
+json.dump(err_dict, (Path(data_dir) / 'err_log_tst__[el_pt_subject_eval.py].json').open('w'), ensure_ascii=False)
 f1, precision, recall = 2 * A / (B + C), A / B, A / C
 logger.info(f'precision:{precision:.4f}-recall:{recall:.4f}-f1:{f1:.4f}')
 
-json.dump(err_dict, (Path(data_dir) / 'err_log_tst__[el_pt_subject_eval.py].json').open('w'), ensure_ascii=False)
 
