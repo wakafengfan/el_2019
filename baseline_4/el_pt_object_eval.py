@@ -80,6 +80,7 @@ else:
 
 dev_data = [train_data[j] for i, j in enumerate(random_order) if i % 9 == mode]
 train_data = [train_data[j] for i, j in enumerate(random_order) if i % 9 != mode]
+test_data, train_data = train_data[-10000:], train_data[:-10000]
 
 
 def seq_padding(X):
@@ -147,62 +148,6 @@ bert_vocab = load_vocab(bert_vocab_path)
 #     return V
 
 
-class data_generator:
-    def __init__(self, data, bs=batch_size):
-        self.data = data
-        self.batch_size = bs
-        self.steps = len(self.data) // self.batch_size
-        if len(self.data) % self.batch_size != 0:
-            self.steps += 1
-
-    def __len__(self):
-        return self.steps
-
-    def __iter__(self):
-        idxs = list(range(len(self.data)))
-        np.random.shuffle(idxs)
-        X, T = [], []
-        for i in idxs:
-            d = self.data[i]
-            text = d['text']
-
-            s1, s2 = np.zeros(len(text)), np.zeros(len(text))
-            mds = {}
-            for md in d['mention_data']:
-                if md[0] in kb2id:  # train subject存在于kb subject
-                    j1 = md[1]
-                    j2 = md[1] + len(md[0])
-                    s1[j1] = 1
-                    s2[j2 - 1] = 1
-                    mds[(j1, j2)] = (md[0], md[2])
-
-            if mds:
-                j1, j2 = choice(list(mds.keys()))
-                x2 = choice(kb2id[mds[(j1, j2)][0]])
-                if x2 == mds[(j1, j2)][1]:
-                    t = [1]
-                else:
-                    t = [0]
-                x2 = id2kb[x2]['subject_desc']
-
-                x1_ids = [bert_vocab.get(c, bert_vocab.get('[UNK]')) for c in text]
-                x2_ids = [bert_vocab.get(c, bert_vocab.get('[UNK]')) for c in x2]
-
-                X.append((x1_ids, x2_ids))
-                T.append(t)
-
-                if len(X) == self.batch_size or i == idxs[-1]:
-                    X_ids, X_SEGs, X_MASKs = seq_padding_bert(X)
-                    X_ids = torch.tensor(X_ids, dtype=torch.long)
-                    X_SEGs = torch.tensor(X_SEGs, dtype=torch.long)
-                    X_MASKs = torch.tensor(X_MASKs, dtype=torch.long)
-
-                    T = torch.tensor(T, dtype=torch.float32)  # [b,1]
-
-                    yield [X_ids, T, X_SEGs, X_MASKs]
-                    X, T = [], []
-
-
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 n_gpu = torch.cuda.device_count()
 
@@ -223,7 +168,7 @@ def extract_items(d):
     _subjects = []
     text = d['text']
     _x1 = [bert_vocab.get(c, bert_vocab.get('[UNK]')) for c in text]
-    mention_data = d['mention_data_pred']
+    mention_data = d['mention_data']
 
     if mention_data:
         for m in mention_data:
@@ -265,8 +210,11 @@ def extract_items(d):
 
             for k, v in groupby(zip(_S, _O), key=lambda x: x[0]):
                 v = np.array([j[1] for j in v])
-                kbid = _IDXS[k][np.argmax(v)]
-                R.append((k[0], k[1], kbid, np.max(v)))
+                if np.max(v) < 0.1:
+                    R.append((k[0], k[1], 'NIL', np.max(v)))
+                else:
+                    kbid = _IDXS[k][np.argmax(v)]
+                    R.append((k[0], k[1], kbid, np.max(v)))
         return list(set(R))
     else:
         return []
@@ -277,9 +225,9 @@ A, B, C = 1e-10, 1e-10, 1e-10
 err_dict = defaultdict(list)
 
 
-for eval_idx, d in tqdm(enumerate((Path(data_dir)/'eval_subject.json').open())):
-    d = json.loads(d)
-# for eval_idx, d in tqdm(enumerate(dev_data[:5000])):
+# for eval_idx, d in tqdm(enumerate((Path(data_dir)/'eval_subject.json').open())):
+#     d = json.loads(d)
+for eval_idx, d in enumerate(test_data):
     M = [tuple(m) for m in d['mention_data'] if m[0] in kb2id]
     p = set(map(lambda x: (str(x[0]), str(x[1]), str(x[2]), f'{x[3]:.5f}'), extract_items(d)))
 

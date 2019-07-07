@@ -397,7 +397,7 @@ for eval_idx, d in enumerate(test_data):
                                 'mention_data': list(T),
                                 'predict': list(p)})
     if eval_idx % 100 == 0:
-        logger.info(f'Dev eval_idx:{eval_idx} - precision:{A/B:.5f} - recall:{A/C:.5f} - f1:{2 * A / (B + C):.5f}')
+        logger.info(f'Test eval_idx:{eval_idx} - precision:{A/B:.5f} - recall:{A/C:.5f} - f1:{2 * A / (B + C):.5f}')
 
 json.dump(err_dict, (Path(data_dir) / 'err_log_test__[el_pt_object.py].json').open('w'), ensure_ascii=False, indent=4)
 
