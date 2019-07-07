@@ -12,13 +12,17 @@ export ROOT_DIR="root"
 
 #/root/anaconda3/envs/py36/bin/python baseline_4/el_pt_subject_eval.py
 
-/root/anaconda3/envs/py36/bin/python baseline_4/el_pt_subject_submit.py
 
 
 
 
 #/root/anaconda3/envs/py36/bin/python baseline_4/el_pt_object.py
 
-#/root/anaconda3/envs/py36/bin/python baseline_3/el_pt_object_submit.py
-
 #/root/anaconda3/envs/py36/bin/python baseline_4/el_pt_object_eval.py
+
+
+
+
+#/root/anaconda3/envs/py36/bin/python baseline_4/el_pt_subject_submit.py
+
+/root/anaconda3/envs/py36/bin/python baseline_4/el_pt_object_submit.py
