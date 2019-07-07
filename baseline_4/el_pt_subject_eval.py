@@ -184,7 +184,7 @@ A, B, C = 1e-10, 1e-10, 1e-10
 err_dict = defaultdict(list)
 output_path = (Path(data_dir)/'eval_subject.json').open('w')
 
-for eval_idx, d in enumerate(test_data):
+for eval_idx, d in enumerate(dev_data[:5000]):
     M = [m for m in d['mention_data'] if m[0] in kb2id]
 
     R = set(map(lambda x: (str(x[0]), str(x[1])), set(extract_items(d['text']))))
