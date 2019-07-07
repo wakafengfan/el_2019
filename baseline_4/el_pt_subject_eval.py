@@ -116,10 +116,10 @@ bert_vocab = load_vocab(bert_vocab_path)
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 n_gpu = torch.cuda.device_count()
 
-config = BertConfig(str(Path(data_dir) / 'subject_model_1/subject_model_config.json'))
+config = BertConfig(str(Path(data_dir) / 'subject_model_config.json'))
 subject_model = SubjectModel(config)
 subject_model.load_state_dict(
-        torch.load(Path(data_dir) / 'subject_model_1/subject_model.pt', map_location='cpu' if not torch.cuda.is_available() else None))
+        torch.load(Path(data_dir) / 'subject_model.pt', map_location='cpu' if not torch.cuda.is_available() else None))
 
 
 subject_model.to(device)
@@ -184,7 +184,7 @@ A, B, C = 1e-10, 1e-10, 1e-10
 err_dict = defaultdict(list)
 output_path = (Path(data_dir)/'eval_subject.json').open('w')
 
-for eval_idx, d in enumerate(dev_data[:5000]):
+for eval_idx, d in enumerate(test_data):
     M = [m for m in d['mention_data'] if m[0] in kb2id]
 
     R = set(map(lambda x: (str(x[0]), str(x[1])), set(extract_items(d['text']))))
