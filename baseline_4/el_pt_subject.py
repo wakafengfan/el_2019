@@ -216,7 +216,7 @@ def extract_items(text_in):
         _k1, _k2, _ = subject_model(device, _X1, _X1_SEG, _X1_MASK)  # _k1:[1,s]
         _k1 = _k1[0, :].detach().cpu().numpy()
         _k2 = _k2[0, :].detach().cpu().numpy()
-        _k1, _k2 = np.where(_k1 > 0.3)[0], np.where(_k2 > 0.5)[0]
+        _k1, _k2 = np.where(_k1 > 0.4)[0], np.where(_k2 > 0.5)[0]
 
     _subjects = []
     if len(_k1) and len(_k2):
@@ -242,11 +242,14 @@ def extract_items(text_in):
     _subjects_new = _subjects.copy()
     for _s, _s_s, _s_e in _subjects:
         for _i, _i_s, _i_e in _subjects:
-            if _s_s == _i_s and _s_e != _i_e and _s in group and len(_s)>len(_i):
-                _subjects_new.remove((_i, _i_s, _i_e))
+            try:
+                if _s_s == _i_s and _s_e != _i_e and _s in group and len(_s)>len(_i):
+                    _subjects_new.remove((_i, _i_s, _i_e))
 
-            if _s_s != _i_s and _s_e == _i_e and _s in group and len(_s)>len(_i):
-                _subjects_new.remove((_i, _i_s, _i_e))
+                if _s_s != _i_s and _s_e == _i_e and _s in group and len(_s)>len(_i):
+                    _subjects_new.remove((_i, _i_s, _i_e))
+            except Exception:
+                logger.info(f'wrong subjects: {_subjects}')
 
     return list(set(_subjects_new))
 
