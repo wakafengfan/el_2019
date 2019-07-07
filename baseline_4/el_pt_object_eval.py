@@ -210,11 +210,11 @@ def extract_items(d):
 
             for k, v in groupby(zip(_S, _O), key=lambda x: x[0]):
                 v = np.array([j[1] for j in v])
-                if np.max(v) < 0.1:
-                    R.append((k[0], k[1], 'NIL', np.max(v)))
-                else:
-                    kbid = _IDXS[k][np.argmax(v)]
-                    R.append((k[0], k[1], kbid, np.max(v)))
+                # if np.max(v) < 0.1:
+                #     R.append((k[0], k[1], 'NIL', np.max(v)))
+                # else:
+                kbid = _IDXS[k][np.argmax(v)]
+                R.append((k[0], k[1], kbid, np.max(v)))
         return list(set(R))
     else:
         return []
