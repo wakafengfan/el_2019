@@ -4,7 +4,6 @@ import logging
 from collections import defaultdict
 from itertools import groupby
 from pathlib import Path
-from random import choice
 
 import numpy as np
 import torch
@@ -13,8 +12,8 @@ from pytorch_pretrained_bert import BertConfig
 from torch.utils.data import DataLoader, TensorDataset
 from tqdm import tqdm
 
-from baseline_3.model_zoo import ObjectModel
-from configuration.config import data_dir, bert_vocab_path, bert_model_path, bert_data_path
+from baseline_4.model_zoo import ObjectModel
+from configuration.config import data_dir, bert_vocab_path
 
 min_count = 2
 mode = 0
@@ -93,7 +92,7 @@ def seq_padding_bert(X_):
     for _ in X_:
         X1_ids = [bert_vocab['[CLS]']] + _[0] + [bert_vocab['[SEP]']]
         X1_SEG = [0] * len(X1_ids)
-        X2_ids = _[1] + [bert_vocab['[SEP]']]
+        X2_ids = _[1]
         X2_SEG = [1] * len(X2_ids)
 
         X_id = X1_ids + X2_ids
@@ -228,7 +227,7 @@ err_dict = defaultdict(list)
 # for eval_idx, d in tqdm(enumerate((Path(data_dir)/'eval_subject.json').open())):
 #     d = json.loads(d)
 for eval_idx, d in enumerate(test_data):
-    M = [tuple(m) for m in d['mention_data'] if m[0] in kb2id]
+    M = [m for m in d['mention_data'] if m[0] in kb2id]
     p = set(map(lambda x: (str(x[0]), str(x[1]), str(x[2]), f'{x[3]:.5f}'), extract_items(d)))
 
     R = set(map(lambda x: (str(x[0]), str(x[1]), str(x[2])), p))
