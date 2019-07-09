@@ -14,7 +14,7 @@ logging.basicConfig(format='%(asctime)s - %(levelname)s - %(name)s - %(message)s
                     datefmt='%m/%d/%y %H:%M:%S',
                     level=logging.INFO)
 logger = logging.getLogger(__name__)
-
+no_zhaiyao = 0
 id2kb = {}
 for l in (Path(data_dir) / 'kb_data').open():
     _ = json.loads(l)
@@ -22,27 +22,16 @@ for l in (Path(data_dir) / 'kb_data').open():
     subject_alias = list(set([_['subject']] + _.get('alias', [])))
     subject_alias = [sa.lower() for sa in subject_alias]
     subject_desc = ''
-    subject_desc_all = ''
     for i in _['data']:
-        # if '摘要' in i['predicate']:
-        #     subject_desc = i['object']
-        #     break
-        # else:
-        # subject_desc += f'{i["predicate"]}:{i["object"]}' + ' '
-        if i['predicate'] in ['摘要', '标签', '义项描述']:
-            subject_desc += i['object'] + ' '
-        subject_desc_all += f'{i["predicate"]}:{i["object"]}' + ' '
+        if '摘要' in i['predicate']:
+            subject_desc = i['object'][:300].lower()
+            break
     if subject_desc == '':
-        subject_desc = ' '.join(subject_alias)[:50] + ' ' + subject_desc_all[:200].lower()
-    else:
-        if len(subject_desc) > 200:
-            subject_desc = ' '.join(subject_alias)[:50] + ' ' + subject_desc[:100].lower() + ' ' + subject_desc[
-                                                                                                   -100:].lower()
-        else:
-            subject_desc = ' '.join(subject_alias)[:50] + ' ' + subject_desc[:200].lower()
+        no_zhaiyao += 1
+        continue
     if subject_desc:
         id2kb[subject_id] = {'subject_alias': subject_alias, 'subject_desc': subject_desc}
-
+print(f'no zhaiyao: {no_zhaiyao}')
 kb2id = collections.defaultdict(list)  # subject: [sid1, sid2,...]
 for i, j in id2kb.items():
     for k in j['subject_alias']:
@@ -50,7 +39,7 @@ for i, j in id2kb.items():
 
 epochs_to_generate = 4
 max_seq_len_1 = 50
-max_seq_len_2 = 200
+max_seq_len_2 = 300
 short_seq_prob = 0.1
 masked_lm_prob = 0.15
 max_predictions_per_seq = 20
@@ -118,7 +107,7 @@ def create_masked_lm_predictions(T):
 
     return T, mask_indices, masked_token_labels
 
-train_data = json.load((Path(data_dir)/'train_data_me.json').open())[:50]
+train_data = json.load((Path(data_dir)/'train_data_me.json').open())
 
 def next_sentence(d):
     tmp_instance = []
@@ -178,7 +167,7 @@ def next_sentence(d):
 threads = 8
 chunk_size = 64
 for epoch in trange(0,epochs_to_generate):
-    epoch_filename = (Path(data_dir)/ f'epoch_{epoch}.json').open('w')
+    epoch_filename = (Path(data_dir)/'pretrain_data'/ f'epoch_{epoch}.json').open('w')
 
     instances = []
     with Pool(threads) as p:

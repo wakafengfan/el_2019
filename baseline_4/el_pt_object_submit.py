@@ -227,6 +227,6 @@ for l in tqdm((Path(data_dir)/'submission_subject.json').open()):
     R = extract_items(doc)
     R = sorted(R, key=lambda x:x[1])
     doc.update({
-        'mention_data': [{'kb_id':str(r[2]), 'mention':str(r[0]), 'offset':str(r[1])} for r in R]
+        'mention_data': [{'kb_id':str(r[2]), 'mention':str(r[0]), 'offset':str(r[1])} for r in R if str(r[2]) != 'NIL']
     })
     output_path.write(json.dumps(doc, ensure_ascii=False) + '\n')
