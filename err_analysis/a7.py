@@ -10,13 +10,15 @@ group = json.load((Path(data_dir)/ 'el_group_word.json').open())
 d1 = [json.loads(l) for l in (Path(data_dir)/'ensemble'/'result_9.json').open()]
 d2 = [json.loads(l) for l in (Path(data_dir)/'ensemble'/'submission_subject_0706.json').open()]
 d3 = [json.loads(l) for l in (Path(data_dir)/'ensemble'/'submission_subject_0707.json').open()]
+d4 = [json.loads(l) for l in (Path(data_dir)/'ensemble'/'submission_subject_0710.json').open()]
 
-for x1, x2, x3 in zip(d1, d2, d3):
+for x1, x2, x3,x4 in zip(d1, d2, d3,d4):
     x1_mention = [(x['mention'], int(x['offset']), int(x['offset']) + len(x['mention'])) for x in x1['mention_data']]
     x2_mention = [(x[0], x[1], x[1]+len(x[0])) for x in x2['mention_data']]
     x3_mention = [(x[0], x[1], x[1]+len(x[0])) for x in x3['mention_data']]
+    x4_mention = [(x[0], x[1], x[1]+len(x[0])) for x in x4['mention_data']]
 
-    mention = list(set(x1_mention + x2_mention + x3_mention))
+    mention = list(set(x1_mention + x2_mention + x3_mention+x4_mention))
 
     new_mention_data = mention.copy()
     for m1 in mention:
