@@ -143,7 +143,7 @@ def extract_items(text_in):
         _k1, _k2, _ = subject_model(device, _X1, _X1_SEG, _X1_MASK)  # _k1:[1,s]
         _k1 = _k1[0, :].detach().cpu().numpy()
         _k2 = _k2[0, :].detach().cpu().numpy()
-        _k1, _k2 = np.where(_k1 > 0.4)[0], np.where(_k2 > 0.5)[0]
+        _k1, _k2 = np.where(_k1 > 0.3)[0], np.where(_k2 > 0.5)[0]
 
     _subjects = []
     if len(_k1) and len(_k2):
@@ -162,7 +162,7 @@ def extract_items(text_in):
     # subject补余
     for _s in match2(text_in):
         if _s[0] in freq:
-            if freq[_s[0]]['per'] > 0.8 or (freq[_s[0]]['exp']<5 and freq[_s[0]]['per']>=0.5):
+            if freq[_s[0]]['per'] > 0.7 or (freq[_s[0]]['exp']<5 and freq[_s[0]]['per']>=0.5):
                 _subjects.append(_s)
 
     _subjects = list(set(_subjects))
